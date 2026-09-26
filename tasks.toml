@@ -1,0 +1,24 @@
+[tasks.clean]
+help = "Remove all cache and generated files"
+script = """poethepoet.scripts:rm(
+    'corga/**/__pycache__',
+    'tests/**/__pycache__',
+    '.pytest_cache',
+    '.ruff_cache',
+    verbosity=1,
+)"""
+verbosity = -1
+
+[tasks.lint]
+help = "Run ruff linter with diff (pass directory/file as arg)"
+cmd = "ruff check ${path} --diff"
+args = [{ name = "path", default = ".", positional = true, multiple = true }]
+
+[tasks.format]
+help = "Check formatting with diff (pass directory/file as arg)"
+cmd = "ruff format ${path} --check --diff"
+args = [{ name = "path", default = ".", positional = true, multiple = true }]
+
+[tasks.quality]
+help = "Run all pre-commit hooks on all files"
+cmd = "pre-commit run --all-files"

@@ -1,0 +1,30 @@
+[project]
+name = "corga"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "karanikolopoulos", email = "ckaranikolopoulos@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.19.0",
+    "poethepoet>=0.48.0",
+    "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+    "ruff>=0.16.9",
+]
+
+[tool.poe]
+include = 'tasks.toml'
+
+[tool.commitizen]
+name = "cz_conventional_commits"

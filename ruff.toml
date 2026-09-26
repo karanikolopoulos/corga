@@ -1,0 +1,37 @@
+line-length = 120
+target-version = "py312"
+exclude = [".git", ".vscode"]
+
+[lint]
+select = [
+    # linting
+    "B",    # flake8-bugbear
+    "C",    # flake8-comprehensions
+    "D200", # unnecessary-multiline-docstring
+    "D202", # blank-line-after-function
+    "E",    # pycodestyle
+    "F",    # Pyflakes
+    "PL",   # pylint
+    # formatting
+    "I",  # isort
+    "UP", # pyupgrade
+    "W",  # pycodestyle warnings
+]
+ignore = [
+    "B905",    # zip-without-explicit-strict
+    "E731",    # lambda-assignment
+    "PLC0414", # useless-import-alias
+    "PLR0913", # too-many-arguments
+    "W191",    # indentation-with-tabs, handled by ruff-format
+]
+
+[lint.isort]
+from-first = false
+length-sort = true
+lines-between-types = 1
+combine-as-imports = true
+known-first-party = ["corga"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
