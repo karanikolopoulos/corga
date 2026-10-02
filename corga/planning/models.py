@@ -4,6 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel, computed_field, model_validator
 
 from corga.data.models import Setting
+from corga.data.timeutil import Interval
 
 Severity = Literal["error", "warning"]
 
@@ -21,6 +22,10 @@ class TimeWindow(BaseModel):
         return self
 
     @property
+    def span(self) -> Interval:
+        return Interval(self.start, self.end)
+
+    @property
     def minutes(self) -> int:
         return int((self.end - self.start).total_seconds() // 60)
 
@@ -33,6 +38,11 @@ class Stop(BaseModel):
     arrive: datetime
     start: datetime
     end: datetime
+
+    @property
+    def span(self) -> Interval:
+        """The visit itself, from start to end."""
+        return Interval(self.start, self.end)
 
 
 class Itinerary(BaseModel):

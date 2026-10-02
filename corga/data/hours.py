@@ -1,18 +1,12 @@
 """Fixture opening hours: null weekday = closed, end < start = overnight, 24:00 = end of day."""
 
-from typing import NamedTuple
 from datetime import date, datetime, timedelta
 
 from pydantic import RootModel
 
-from corga.data.timeutil import at
+from corga.data.timeutil import Interval, at
 
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-
-
-class Interval(NamedTuple):
-    start: datetime
-    end: datetime
 
 
 def parse_range(day: date, spec: str) -> Interval:
@@ -32,8 +26,8 @@ class OpeningHours(RootModel[dict[str, str | None]]):
 
     def __contains__(self, span: Interval) -> bool:
         """`(start, end) in hours`: the whole span falls inside one opening interval."""
-        start, end = span
-        return any(i.start <= start and end <= i.end for i in self.intervals_around(start.date()))
+        span = Interval(*span)  # a plain (start, end) tuple works too
+        return any(interval.contains(span) for interval in self.intervals_around(span.start.date()))
 
     def intervals_starting_on(self, day: date) -> list[Interval]:
         spec = self.root.get(WEEKDAYS[day.weekday()])

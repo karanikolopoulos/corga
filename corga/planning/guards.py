@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from collections.abc import Iterator, Sequence
 
 from corga.data.models import POI
+from corga.data.timeutil import Interval
 from corga.planning.rules import PlanningRules
 from corga.planning.models import Stop, Severity, Itinerary, Violation, TimeWindow
 
@@ -78,7 +79,7 @@ class StopGuards(Guards):
     def within_window(self) -> Clause:
         stop, window = self.stop, self.window
         return Clause(
-            ok=window.start <= stop.arrive and stop.end <= window.end,
+            ok=window.span.contains(Interval(stop.arrive, stop.end)),  # from arrival: waiting for opening counts too
             code="OUTSIDE_WINDOW",
             msg=f"{stop.name} ({stop.start:%H:%M}-{stop.end:%H:%M}) falls outside "
             f"{window.start:%H:%M}-{window.end:%H:%M}.",
