@@ -1,4 +1,5 @@
 from typing import Literal
+from datetime import date
 
 from pydantic import Field, BaseModel, ConfigDict
 
@@ -27,3 +28,7 @@ class POI(BaseModel):
     opening_hours: OpeningHours | None = Field(alias="opening_hours")
     family_suitable: bool | None = Field(alias="family_suitable")
     source_urls: list[str] = []
+
+    def is_open_on(self, day: date) -> bool:
+        """Open at some point that day; unknown hours (null) count as not open."""
+        return self.opening_hours is not None and self.opening_hours.is_open_on(day)

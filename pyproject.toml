@@ -9,9 +9,13 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28.1",
+    "jinja2>=3.1.6",
+    "langchain-anthropic>=1.7.4",
     "langchain-core>=1.6.5",
     "langchain-huggingface>=1.2.2",
+    "langchain-openai>=1.6.6",
     "langchain-qdrant>=1.1.0",
+    "langgraph>=1.2.12",
     "pydantic>=2",
     "sentence-transformers>=6.1.0",
     "torch>=2.14.0",

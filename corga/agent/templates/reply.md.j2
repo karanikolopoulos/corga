@@ -1,0 +1,57 @@
+{# The factual part of every reply, in reading order. Each section opens with a blank line and renders only when
+   it has something to show. #}
+{% if feasibility and not feasibility.feasible %}
+
+**Why this does not fit:**
+{% for issue in feasibility.issues %}
+- {{ issue.message }}
+{% endfor %}
+{% if feasibility.alternative %}
+
+**Closest feasible alternative:**
+{% endif %}
+{% endif %}
+{% if itinerary %}
+
+**Itinerary: {{ itinerary.window.start | day }}, {{ itinerary.window.start | hhmm }}–{{ itinerary.window.end | hhmm }}**
+
+| # | Stop | Walk | Arrive | Visit | Setting |
+|---|---|---|---|---|---|
+{% for s in itinerary.stops %}
+| {{ loop.index }} | {{ s.name }} ({{ s.poi_id }}) | {{ "–" if loop.first else s.walk_minutes ~ " min" }} | {{ s.arrive | hhmm }} | {{ s.start | hhmm }}–{{ s.end | hhmm }} | {{ s.setting }} |
+{% endfor %}
+{% if itinerary.assumptions %}
+
+*Assumptions:*
+{% for assumption in itinerary.assumptions %}
+- {{ assumption }}
+{% endfor %}
+{% endif %}
+{% endif %}
+{% if validation and validation.violations %}
+
+**Checks:**
+{% for v in validation.violations %}
+- [{{ v.severity }}] {{ v.message }}
+{% endfor %}
+{% endif %}
+{% if items %}
+
+{% for i in items %}
+- {{ i.name }} ({{ i.id }}): {{ i.category }}, {{ i.setting }}
+{% endfor %}
+{% endif %}
+{% if hours %}
+
+**Forecast ({{ source }})**
+
+| Hour | Rain (mm) | Conditions | °C |
+|---|---|---|---|
+{% for h in hours %}
+| {{ h.time }} | {{ h.precipitation_mm }} | {{ h.description }} | {{ h.temperature_c }} |
+{% endfor %}
+{% endif %}
+{% if sources %}
+
+**Sources (dataset records):** {{ sources | join("; ") }}
+{% endif %}

@@ -136,7 +136,7 @@ def check_requested(
 
     # Otherwise explain why, and offer the best plan built from the places open that day.
     day = window.start.date()
-    open_that_day = [p for p in pois if p.opening_hours is not None and p.opening_hours.is_open_on(day)]
+    open_that_day = [p for p in pois if p.is_open_on(day)]
     alternative = build_itinerary(window, open_that_day, rules)
     return FeasibilityReport(
         feasible=False,

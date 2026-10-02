@@ -78,3 +78,11 @@ class Preferences(BaseModel):
     avoid_museums: bool = False
     outdoor_only: bool = False
     indoor_only: bool = False
+
+    def without_interests(self) -> "Preferences":
+        """The same constraints (child, museums, setting) with no topic preference."""
+        return self.model_copy(update={"interests": []})
+
+    def indoor(self) -> "Preferences":
+        """The same preferences restricted to indoor places, e.g. for rain."""
+        return self.model_copy(update={"outdoor_only": False, "indoor_only": True})
