@@ -32,3 +32,15 @@ help = "Start the interactive chat (Hydra overrides go after it, e.g. `poe chat 
 cmd = "python -m corga"
 use_exec = true
 verbosity = -1
+
+[tasks._uid]
+cmd = "id -u"
+
+[tasks._gid]
+cmd = "id -g"
+
+[tasks.docker]
+help = "Start the chat in Docker as your own user, building the image when needed (Hydra overrides go after it, e.g. `poe docker provider=openai`)"
+cmd = "docker compose run --rm --build app"
+uses = { HOST_UID = "_uid", HOST_GID = "_gid" }
+use_exec = true

@@ -16,9 +16,8 @@ wheels/
 !.env.example
 .vscode/
 .claude/
-runs/
-outputs/
-multirun/
+runs/*
+!runs/.gitkeep
 
 # Misc
 *.pdf

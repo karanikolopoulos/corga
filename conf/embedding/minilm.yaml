@@ -1,5 +1,4 @@
 _target_: langchain_huggingface.HuggingFaceEmbeddings
 model_name: sentence-transformers/all-MiniLM-L6-v2
-cache_folder: ${oc.env:MODEL_CACHE,null}  # where the model is downloaded; unset: ~/.cache/huggingface
 encode_kwargs:
   normalize_embeddings: true

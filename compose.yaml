@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    image: corga:latest
+    env_file: .env
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"  # run as the host's user
+    volumes:
+      - type: bind
+        source: ./runs  # traces and logs on the host
+        target: /app/runs
+        bind:
+          create_host_path: false
+      - cache:/app/.cache  # the embedding model and the place index
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # reach a server running on the host
+
+volumes:
+  cache:

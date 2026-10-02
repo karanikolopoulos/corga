@@ -39,7 +39,7 @@ def build_index(
     Args:
         pois: The places to index.
         embeddings: The embedding model.
-        url: A Qdrant server. With neither `url` nor `path` the index stays in memory.
+        url: A Qdrant server, used before `path`. With neither the index stays in memory.
         api_key: The Qdrant Cloud key, for a server that needs one.
         path: A folder for a local Qdrant on disk. Its collection is reused while the embedding model and the places
             are the same, and rebuilt when either changes.
@@ -49,14 +49,14 @@ def build_index(
     """
     docs = [poi_to_document(poi) for poi in pois]
 
-    if path is not None:
+    if path and not url:
         return on_disk(docs, embeddings, path)
 
     return QdrantVectorStore.from_documents(
         docs,
         embeddings,
-        location=":memory:" if url is None else None,
-        url=url,
+        location=":memory:" if not url else None,
+        url=url or None,
         api_key=api_key,
         collection_name=COLLECTION,
         force_recreate=True,  # a server keeps collections between runs: always start from the current dataset

@@ -42,3 +42,14 @@ jobs:
 
       - name: Run tests
         run: uv run poe test
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the image
+        run: docker build -t corga:ci .
+
+      - name: Compose the config inside the image
+        run: docker run --rm corga:ci --cfg job

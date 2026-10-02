@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+.cache
+.claude
+.vscode
+runs
+notebooks
+tests
+**/__pycache__
+*.pdf
+*.png
+.env

@@ -1,9 +1,16 @@
 defaults:
-  - _self_
-  - base
+  - provider: anthropic  # anthropic | openai | oai-api
+  - embedding: minilm
+  - store: poi
+  - retrieval: qdrant
   - weather: live
   - hydra: settings
+  - rules
+  - _self_
+
+# native structured output on every provider
+structured_method: json_schema  # function_calling | json_schema | json_mode | null
 
 hydra:
   run:
-    dir: runs/chat/${hydra:runtime.choices.provider}/${sanitize:${provider.model}}/${now:%Y-%m-%dT%H-%M-%S}
+    dir: runs/${hydra:runtime.choices.provider}/${sanitize:${provider.model}}/${now:%Y-%m-%dT%H-%M-%S}

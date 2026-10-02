@@ -1,4 +1,3 @@
-# As simple.yaml, and also in the terminal through rich. Use: poe chat hydra/job_logging=console
 version: 1
 disable_existing_loggers: false
 formatters:
@@ -11,13 +10,15 @@ handlers:
     class: logging.FileHandler
     formatter: simple
     filename: ${hydra.runtime.output_dir}/${hydra.job.name}.log
+    level: DEBUG
   terminal:
     class: rich.logging.RichHandler
     formatter: terminal
     show_path: false
+    level: INFO
 root:
   level: WARNING
   handlers: [file, terminal]
 loggers:
   corga:
-    level: INFO
+    level: DEBUG
