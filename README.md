@@ -1,8 +1,8 @@
 # CorGA: Corfu Guide Agent
 
-A small conversational travel assistant for Corfu, built with LangGraph. It answers questions about the destination, recommends places
-based on the visitor's preferences, produces a realistic half-day plan, and revises that plan when the visitor changes
-their mind or the weather changes.
+A small conversational travel assistant for Corfu, built with LangGraph. It answers questions about the destination,
+recommends places based on the visitor's preferences, produces a realistic half-day plan, and revises that plan when the
+visitor changes their mind or the weather changes.
 
 ## Setup
 
@@ -20,7 +20,7 @@ The place index is kept:
 
 - on a Qdrant server when `QDRANT_URL` is set (Qdrant Cloud or your own cluster),
 - else on disk in `.cache/embeddings`, reused between runs,
-- else in memory, rebuilt on each start.
+- else in memory with `retrieval.qdrant_path=null`, rebuilt on each start.
 
 ## Run with Docker
 
@@ -96,11 +96,29 @@ Other options:
 ```bash
 uv run poe chat +max_stops=4 +speed_kmh=4                   # planning rules, see conf/rules.yaml
 uv run poe chat retrieval.qdrant_path=null                  # keep the place index in memory
-uv run poe chat hydra.verbose=corga                         # debug logging (very noisy)
 uv run poe chat hydra=debug                                 # disable logging, files and storage
 ```
 
 The same options work with `uv run poe docker` and `docker compose run --rm app`.
 
-Each run writes `runs/<provider>/<model>/<time>/`: the session traces (`sessions/<id>.json`), the log and the
+Each run writes `runs/<provider>/<model>/<time>/`: the session traces (`sessions/<id>.json`), the log (at DEBUG) and the
 resolved configuration (`.hydra/`).
+
+## Tests
+
+```bash
+uv run poe test
+```
+
+The tests run the graph and the planner with a scripted LLM, the rain fixture and a fixed clock, so they need no API
+key and no network.
+
+## Documentation
+
+- [docs/design.md](docs/design.md), how the system separates retrieval, live tools, LLM reasoning, itinerary validation
+  and conversation state, and how it can be extended.
+- [docs/evaluation.md](docs/evaluation.md), nine conversations with the expected behaviour and the observed result.
+- [docs/discussion.md](docs/discussion.md), retrieval quality, the iterative design process and hallucinations.
+- [notebooks](notebooks/), the data exploration of the places
+  ([1.0-ck-poi-exploration.ipynb](notebooks/1.0-ck-poi-exploration.ipynb)) and of the walking times
+  ([1.0-ck-walking-times.ipynb](notebooks/1.0-ck-walking-times.ipynb)).
