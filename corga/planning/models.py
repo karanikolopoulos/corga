@@ -1,12 +1,19 @@
-from typing import Self, Literal
-from datetime import datetime
+from typing import Any, Self, Literal, Annotated
+from datetime import date, datetime
 
-from pydantic import BaseModel, computed_field, field_validator, model_validator
+from pydantic import BaseModel, PlainSerializer, computed_field, field_validator, model_validator
 
-from corga.data.models import Setting
+from corga.data.models import POI, Setting
 from corga.data.timeutil import Interval
 
 Severity = Literal["error", "warning"]
+ViolationCode = Literal[
+    "EMPTY", "DUPLICATE",  # the whole itinerary
+    "OUTSIDE_WINDOW", "VISIT_TOO_SHORT", "UNKNOWN_HOURS", "CLOSED", "LONG_WAIT",  # a stop
+    "TRAVEL_TOO_SHORT", "LEG_TOO_LONG",  # the walk into a stop
+    "TIME_BUDGET", "CLOSED_DAY",  # a request for named places
+]  # fmt: skip
+PlaceRef = Annotated[POI, PlainSerializer(lambda poi: poi.id, return_type=str, when_used="json")]  # JSON: the id
 PreferredSetting = Literal["indoor", "outdoor"]  # what a visitor asks for; places are also labelled "mixed"
 
 
@@ -32,18 +39,36 @@ class TimeWindow(BaseModel):
         return Interval(self.start, self.end)
 
     @property
+    def day(self) -> date:
+        return self.start.date()
+
+    @property
     def minutes(self) -> int:
         return int((self.end - self.start).total_seconds() // 60)
 
 
 class Stop(BaseModel):
-    poi_id: str
-    name: str
-    setting: Setting
+    """A visit to one place; in JSON the place is written as its id, followed by its name and setting."""
+
+    poi: PlaceRef
     walk_minutes: int
     arrive: datetime
     start: datetime
     end: datetime
+
+    @property
+    def poi_id(self) -> str:
+        return self.poi.id
+
+    @computed_field
+    @property
+    def name(self) -> str:
+        return self.poi.name
+
+    @computed_field
+    @property
+    def setting(self) -> Setting:
+        return self.poi.setting
 
     @property
     def span(self) -> Interval:
@@ -57,12 +82,16 @@ class Itinerary(BaseModel):
     assumptions: list[str] = []
 
     @property
+    def pois(self) -> list[POI]:
+        return [s.poi for s in self.stops]
+
+    @property
     def poi_ids(self) -> list[str]:
         return [s.poi_id for s in self.stops]
 
 
 class Violation(BaseModel):
-    code: str
+    code: ViolationCode
     severity: Severity = "error"
     stop: int | None = None
     poi_id: str | None = None
@@ -88,6 +117,10 @@ class Preferences(BaseModel):
     @classmethod
     def _normalized(cls, interests: list[str]) -> list[str]:
         return normalize_interests(interests)
+
+    def merged(self, updates: dict[str, Any]) -> Self:
+        """These preferences with `updates` applied, validated (and the interests cleaned) like a new instance."""
+        return self.model_validate(self.model_dump() | updates)
 
     def without_interests(self) -> Self:
         """The same constraints (child, museums, setting) with no topic preference."""

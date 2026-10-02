@@ -11,12 +11,12 @@ from collections.abc import Iterator, Sequence
 from corga.data.models import POI
 from corga.data.timeutil import Interval
 from corga.planning.rules import PlanningRules
-from corga.planning.models import Stop, Severity, Itinerary, Violation, TimeWindow
+from corga.planning.models import Stop, Severity, Itinerary, Violation, TimeWindow, ViolationCode
 
 
 class Clause(NamedTuple):
     ok: bool
-    code: str
+    code: ViolationCode
     msg: str
     severity: Severity = "error"
 
@@ -55,8 +55,9 @@ class ItineraryGuards(Guards):
 
     @property
     def unique_stops(self) -> Clause:
-        counts = Counter(stop.name for stop in self.itinerary.stops)
-        repeated = [name for name, count in counts.items() if count > 1]
+        visits = Counter(stop.poi_id for stop in self.itinerary.stops)
+        names = {stop.poi_id: stop.name for stop in self.itinerary.stops}
+        repeated = [names[poi_id] for poi_id, count in visits.items() if count > 1]  # each place once
         return Clause(
             ok=not repeated,
             code="DUPLICATE",
@@ -71,7 +72,6 @@ class ItineraryGuards(Guards):
 @dataclass(frozen=True)
 class StopGuards(Guards):
     stop: Stop
-    poi: POI
     window: TimeWindow
     rules: PlanningRules
 
@@ -87,7 +87,7 @@ class StopGuards(Guards):
 
     @property
     def full_visit(self) -> Clause:
-        minutes = self.poi.suggested_visit_minutes
+        minutes = self.stop.poi.suggested_visit_minutes
         return Clause(
             ok=self.stop.end - self.stop.start >= timedelta(minutes=minutes),
             code="VISIT_TOO_SHORT",
@@ -96,7 +96,7 @@ class StopGuards(Guards):
 
     @property
     def open_during_visit(self) -> Clause:
-        stop, hours = self.stop, self.poi.opening_hours
+        stop, hours = self.stop, self.stop.poi.opening_hours
         if hours is None:
             return Clause(
                 ok=False,
@@ -104,7 +104,7 @@ class StopGuards(Guards):
                 msg=f"No confirmed opening hours for {stop.name}; access cannot be promised.",
             )
         return Clause(
-            ok=(stop.start, stop.end) in hours,
+            ok=stop.span in hours,
             code="CLOSED",
             msg=f"{stop.name} is not open for the whole visit {stop.start:%H:%M}-{stop.end:%H:%M} on {stop.start:%A}.",
         )
@@ -129,14 +129,12 @@ class StopGuards(Guards):
 @dataclass(frozen=True)
 class LegGuards(Guards):
     prev_stop: Stop
-    prev_poi: POI
     stop: Stop
-    poi: POI
     rules: PlanningRules
 
     @cached_property
     def walk_minutes(self) -> int:
-        return self.rules.walking.minutes(self.prev_poi.location, self.poi.location)
+        return self.rules.walking.minutes(self.prev_stop.poi.location, self.stop.poi.location)
 
     @property
     def enough_travel_time(self) -> Clause:
@@ -161,6 +159,32 @@ class LegGuards(Guards):
 
 
 @dataclass(frozen=True)
+class VisitGuards(Guards):
+    """One visit: the stop itself and, after the first stop, the walk into it."""
+
+    prev_stop: Stop | None  # None for the first stop of the day
+    stop: Stop
+    window: TimeWindow
+    rules: PlanningRules
+
+    def __iter__(self) -> Iterator[Clause]:
+        # The stop: inside the window, full visit, open for the whole visit, no long wait.
+        yield from StopGuards(self.stop, self.window, self.rules)
+
+        # The first stop has no walk leading to it.
+        if self.prev_stop is None:
+            return
+
+        # The walk from the previous stop: enough time to cover it, and short enough.
+        yield from LegGuards(self.prev_stop, self.stop, self.rules)
+
+
+def visit_minutes(pois: Sequence[POI]) -> int:
+    """The time the visits themselves take, walking excluded."""
+    return sum(poi.suggested_visit_minutes for poi in pois)
+
+
+@dataclass(frozen=True)
 class RequestGuards(Guards):
     """A request to visit specific places, taken as a whole."""
 
@@ -169,7 +193,7 @@ class RequestGuards(Guards):
 
     @property
     def fits_in_window(self) -> Clause:
-        visit = sum(poi.suggested_visit_minutes for poi in self.pois)
+        visit = visit_minutes(self.pois)
         return Clause(
             ok=visit <= self.window.minutes,
             code="TIME_BUDGET",
@@ -195,7 +219,7 @@ class PlaceGuards(Guards):
         if hours is None:
             return Clause(ok=False, code="UNKNOWN_HOURS", msg=f"{poi.name} has no confirmed opening hours.")
         return Clause(
-            ok=hours.is_open_on(self.day),
+            ok=poi.is_open_on(self.day),
             code="CLOSED_DAY",
             msg=f"{poi.name} is closed on {self.day:%A} (fixture hours).",
         )

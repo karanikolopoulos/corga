@@ -46,13 +46,17 @@ def matched_interests(poi: POI, interests: Sequence[str]) -> list[str]:
 
 
 def select_candidates(pois: Sequence[POI], prefs: Preferences, ranker: Ranker | None = None) -> list[POI]:
+    """The places that pass the filters and match a known interest (any place when no interest is known), in the
+    ranker's order for the interests when there is one, else by id."""
     interests = prefs.interests
-    known = [i for i in interests if i in INTEREST_RULES]
-    pool = [p for p in pois if passes_filters(p, prefs) and (not known or matched_interests(p, known))]
-    pool.sort(key=lambda p: p.id)
+    any_known = any(interest in INTEREST_RULES for interest in interests)
+    pool = [p for p in pois if passes_filters(p, prefs) and (not any_known or matched_interests(p, interests))]
+
+    order: dict[str, int] = {}
     if ranker and interests:
-        order = {pid: rank for rank, pid in enumerate(ranker(" ".join(interests), {p.id for p in pool}))}
-        pool.sort(key=lambda p: (order.get(p.id, len(order)), p.id))
+        ranked = ranker(" ".join(interests), {p.id for p in pool})
+        order = {pid: rank for rank, pid in enumerate(ranked)}
+    pool.sort(key=lambda p: (order.get(p.id, len(order)), p.id))  # ranked places first, ties and the rest by id
     return pool
 
 

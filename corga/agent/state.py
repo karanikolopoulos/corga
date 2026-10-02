@@ -3,15 +3,16 @@
 import datetime as dt  # module import: the `date` field below would shadow a bare `date` type
 
 from typing import Any, Literal, Annotated, TypedDict
+from dataclasses import field, dataclass
 
 from pydantic import Field, BaseModel, field_validator
-from langchain_core.messages import AnyMessage
+from langchain_core.messages import AnyMessage, HumanMessage
 from langgraph.graph.message import add_messages
 
+from corga.agent.results import Result
 from corga.planning.models import Itinerary, TimeWindow, Preferences, PreferredSetting, normalize_interests
 
 Intent = Literal["question", "recommend", "plan", "edit_plan", "weather", "out_of_scope"]
-Result = dict[str, Any]  # a turn's structured outcome as JSON-ready data; `kind` says which one
 PREFERENCE_FIELDS = ("with_child", "avoid_museums", "setting")
 
 
@@ -37,16 +38,14 @@ class ParsedRequest(BaseModel):
 
     @property
     def preference_updates(self) -> dict[str, Any]:
-        """The preferences this message states: the non-null flags and setting, and the interests if any."""
+        """The preferences this message states: the non-null flags and setting, and the interests if any is not blank.
+
+        The interests are passed on as written; `Preferences` cleans them.
+        """
         updates = {name: getattr(self, name) for name in PREFERENCE_FIELDS if getattr(self, name) is not None}
-        if self.interests:
+        if normalize_interests(self.interests):
             updates["interests"] = self.interests
         return updates
-
-    @field_validator("interests")
-    @classmethod
-    def _normalized(cls, interests: list[str]) -> list[str]:
-        return normalize_interests(interests)
 
     @field_validator("start_time", "end_time")
     @classmethod
@@ -55,16 +54,38 @@ class ParsedRequest(BaseModel):
         return value.replace(tzinfo=None) if value else value
 
 
-class AgentState(TypedDict, total=False):
+class Update(TypedDict, total=False):
+    """What a node returns: only the state fields it changes; LangGraph merges them into the stored state."""
+
+    messages: list[AnyMessage]
+    request: ParsedRequest
+    window: TimeWindow | None
+    preferences: Preferences
+    itinerary: Itinerary | None
+    result: Result
+
+
+@dataclass
+class AgentState:
     """What the checkpointer keeps per session; only `messages` accumulates, the rest is overwritten each turn.
 
-    Nodes return an `AgentState` holding only the keys they change; LangGraph merges it into the stored state.
-    Every key is optional (`total=False`) so such a partial state type-checks.
+    Nodes receive it as an instance and return an `Update` holding only the fields they change; LangGraph merges it
+    into the stored state.
     """
 
-    messages: Annotated[list[AnyMessage], add_messages]  # appended to, never overwritten
-    request: ParsedRequest  # this turn's interpretation
-    window: TimeWindow | None  # sticky across turns
-    preferences: Preferences  # sticky across turns
-    itinerary: Itinerary | None  # only ever a validated plan
-    result: Result  # rendered by `respond`
+    messages: Annotated[list[AnyMessage], add_messages] = field(default_factory=list)  # appended to, never overwritten
+    request: ParsedRequest | None = None  # this turn's interpretation, set by `parse` before any handler runs
+    window: TimeWindow | None = None  # sticky across turns
+    preferences: Preferences = field(default_factory=Preferences)  # sticky across turns
+    itinerary: Itinerary | None = None  # only ever a validated plan
+    result: Result | None = None  # set by the handler, rendered by `respond`
+
+    @property
+    def day(self) -> dt.date | None:
+        return self.window.day if self.window else None
+
+    @property
+    def question(self) -> str:
+        """The question as parsed, else the user's latest message as written."""
+        latest = next((m.text for m in reversed(self.messages) if isinstance(m, HumanMessage)), "")
+        return (self.request.question if self.request else None) or latest

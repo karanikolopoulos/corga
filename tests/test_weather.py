@@ -3,7 +3,6 @@ from datetime import date
 import httpx
 import pytest
 
-from corga import RAIN_FIXTURE_PATH
 from tests.conftest import WED
 from corga.data.timeutil import at
 from corga.weather.models import HourlyWeather, WeatherUnavailable
@@ -21,7 +20,7 @@ RECORDED = {
 
 
 def test_fixture_returns_overlapping_local_hours():
-    hours = FixtureWeather(RAIN_FIXTURE_PATH).hourly(at(WED, "13:00"), at(WED, "17:00"))
+    hours = FixtureWeather().hourly(at(WED, "13:00"), at(WED, "17:00"))
     assert [h.time.hour for h in hours] == [13, 14, 15, 16]
     assert hours[0].time.tzinfo is not None
     assert [h.is_wet for h in hours] == [False, False, True, True]
@@ -29,7 +28,7 @@ def test_fixture_returns_overlapping_local_hours():
 
 def test_fixture_outside_its_date_is_unavailable():
     with pytest.raises(WeatherUnavailable):
-        FixtureWeather(RAIN_FIXTURE_PATH).hourly(at(date(2026, 10, 8), "13:00"), at(date(2026, 10, 8), "17:00"))
+        FixtureWeather().hourly(at(date(2026, 10, 8), "13:00"), at(date(2026, 10, 8), "17:00"))
 
 
 def test_open_meteo_request_and_parsing():
@@ -54,6 +53,16 @@ def test_open_meteo_errors_become_weather_unavailable():
     provider = OpenMeteoWeather(39.62, 19.92, client=httpx.Client(transport=httpx.MockTransport(handler)))
     with pytest.raises(WeatherUnavailable, match="out of allowed range"):
         provider.hourly(at(WED, "13:00"), at(WED, "16:00"))
+
+
+def test_open_meteo_without_hours_in_the_range_is_unavailable():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=RECORDED)  # Wednesday's hours only
+
+    provider = OpenMeteoWeather(39.62, 19.92, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    thursday = date(2026, 10, 8)
+    with pytest.raises(WeatherUnavailable, match="Open-Meteo has no data for 2026-10-08 13:00-16:00"):
+        provider.hourly(at(thursday, "13:00"), at(thursday, "16:00"))
 
 
 def test_wmo_descriptions():
@@ -83,5 +92,5 @@ def test_hourly_weather_is_always_athens_time():
 
 
 def test_providers_say_where_the_forecast_comes_from():
-    assert FixtureWeather(RAIN_FIXTURE_PATH).label == "fixture (synthetic rain, corfu_synthetic_rain.json)"
+    assert FixtureWeather().label == "fixture (synthetic rain, corfu_synthetic_rain.json)"
     assert OpenMeteoWeather(39.62, 19.92).label == "live (Open-Meteo)"

@@ -25,8 +25,7 @@ class OpeningHours(RootModel[dict[str, str | None]]):
         return self.root[weekday]
 
     def __contains__(self, span: Interval) -> bool:
-        """`(start, end) in hours`: the whole span falls inside one opening interval."""
-        span = Interval(*span)  # a plain (start, end) tuple works too
+        """`span in hours`: the whole span falls inside one opening interval."""
         return any(interval.contains(span) for interval in self.intervals_around(span.start.date()))
 
     def intervals_starting_on(self, day: date) -> list[Interval]:

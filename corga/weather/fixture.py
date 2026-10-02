@@ -6,8 +6,7 @@ from pathlib import Path
 from datetime import datetime
 
 from corga import RAIN_FIXTURE_PATH
-from corga.data.timeutil import Interval
-from corga.weather.models import HourlyWeather, WeatherUnavailable
+from corga.weather.models import HourlyWeather, overlapping
 
 
 class FixtureWeather:
@@ -27,7 +26,4 @@ class FixtureWeather:
         ]
 
     def hourly(self, start: datetime, end: datetime) -> list[HourlyWeather]:
-        hours = [h for h in self._hours if h.span.overlaps(Interval(start, end))]
-        if not hours:
-            raise WeatherUnavailable(f"fixture has no data for {start:%Y-%m-%d %H:%M}-{end:%H:%M}")
-        return hours
+        return overlapping(self._hours, start, end, "fixture")

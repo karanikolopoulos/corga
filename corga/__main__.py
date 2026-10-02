@@ -15,9 +15,7 @@ from hydra.core.hydra_config import HydraConfig
 
 from corga import CONF_DIR
 from corga.app import repl, build_deps, register_resolvers
-from corga.agent.graph import build_graph
-from corga.agent.session import ChatSession
-from corga.agent.tracing import JsonlTracer
+from corga.agent import ChatSession, JsonlTracer, build_graph
 
 load_dotenv()  # before Hydra resolves ${oc.env:...}
 register_resolvers()  # before @hydra.main composes the config
@@ -32,7 +30,8 @@ def main(cfg: DictConfig) -> None:
 
     print("Loading the dataset and the embedding model...")
     graph, deps = build_graph(), build_deps(cfg)
-    print(f"Model: {hydra_cfg.runtime.choices['provider']} {cfg.provider.model} · weather: {deps.weather.label}")
+    weather = deps.guide.weather.label
+    print(f"Model: {hydra_cfg.runtime.choices['provider']} {cfg.provider.model} · weather: {weather}")
 
     def new_session() -> ChatSession:
         session_id = uuid4().hex[:8]

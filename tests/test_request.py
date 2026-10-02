@@ -1,10 +1,10 @@
 from datetime import time
 
 from tests.conftest import TUE, window
-from corga.agent.turn import resolve_window, merge_preferences, unsupported_topics
 from corga.agent.state import ParsedRequest
 from corga.data.timeutil import at
 from corga.planning.models import Preferences
+from corga.agent.nodes.request import resolve_window, merge_preferences, unsupported_topics
 
 
 def test_full_window_from_request():
@@ -56,9 +56,11 @@ def test_a_stated_setting_replaces_the_stored_one():
 def test_preference_updates_hold_only_what_the_message_states():
     assert ParsedRequest(intent="edit_plan", stop_index=2).preference_updates == {}
     stated = ParsedRequest(intent="edit_plan", setting="outdoor", with_child=False, interests=[" Food "])
-    assert stated.preference_updates == {"setting": "outdoor", "with_child": False, "interests": ["food"]}
+    assert stated.preference_updates == {"setting": "outdoor", "with_child": False, "interests": [" Food "]}
+    assert ParsedRequest(intent="plan", interests=["", " "]).preference_updates == {}  # blank interests state nothing
 
 
-def test_interests_are_normalized_where_they_enter():
-    assert ParsedRequest(intent="plan", interests=[" Art ", "", "HISTORY"]).interests == ["art", "history"]
+def test_interests_are_normalized_by_the_preferences():
+    merged = merge_preferences(Preferences(), ParsedRequest(intent="plan", interests=[" Art ", "", "HISTORY"]))
+    assert merged.interests == ["art", "history"]
     assert Preferences(interests=["Museums "]).interests == ["museums"]

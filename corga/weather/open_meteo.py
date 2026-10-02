@@ -5,8 +5,8 @@ from datetime import datetime
 
 import httpx
 
-from corga.data.timeutil import TZ, Interval
-from corga.weather.models import HourlyWeather, WeatherUnavailable
+from corga.data.timeutil import TZ
+from corga.weather.models import HourlyWeather, WeatherUnavailable, overlapping
 
 URL = "https://api.open-meteo.com/v1/forecast"
 HOURLY_FIELDS = "temperature_2m,precipitation,weather_code"
@@ -22,8 +22,7 @@ class OpenMeteoWeather:
 
     def hourly(self, start: datetime, end: datetime) -> list[HourlyWeather]:
         """Forecast hours overlapping `start`-`end` (Europe/Athens)."""
-        hours = self._parse(self._fetch(start, end))
-        return [hour for hour in hours if hour.span.overlaps(Interval(start, end))]
+        return overlapping(self._parse(self._fetch(start, end)), start, end, "Open-Meteo")
 
     def _fetch(self, start: datetime, end: datetime) -> dict[str, Any]:
         """One request covering the whole days of `start`-`end`; any failure becomes WeatherUnavailable."""

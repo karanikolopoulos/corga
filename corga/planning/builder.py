@@ -1,22 +1,19 @@
-"""Everything that produces a plan: build one greedily, replace one stop, rebuild from the first stop that no longer
-fits, or try requested places in every order."""
+"""Producing a plan: build one greedily, replace one stop, or try requested places in every order."""
 
 from typing import NamedTuple
 from operator import attrgetter
 from itertools import permutations
 from dataclasses import dataclass
-from collections.abc import Callable, Sequence
+from collections.abc import Iterable, Sequence
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 
-from corga.data.store import POIStore
 from corga.data.models import POI
 from corga.planning.rules import PlanningRules
 from corga.planning.checks import validate
-from corga.planning.guards import LegGuards, StopGuards, PlaceGuards, RequestGuards
-from corga.planning.models import Stop, Itinerary, Violation, TimeWindow, Preferences
+from corga.planning.guards import PlaceGuards, VisitGuards, RequestGuards, visit_minutes
+from corga.planning.models import Itinerary, Violation, TimeWindow
 from corga.planning.schedule import Schedule
-from corga.planning.candidates import Ranker, select_candidates
 
 MAX_PERMUTED = 6  # requested places up to this count are tried in every order
 
@@ -47,7 +44,7 @@ class ItineraryBuilder:
             plan = best.schedule
             remaining.remove(best.poi)
 
-        return Itinerary(window=self.window, stops=list(plan), assumptions=self.rules.assumptions())
+        return _itinerary(self.window, plan, self.rules)
 
     def best_next(self, plan: Schedule, remaining: Sequence[POI]) -> Option | None:
         """The cheapest candidate that can be visited next, or None if none fits."""
@@ -63,17 +60,8 @@ class ItineraryBuilder:
 
     def fits(self, base: Schedule, trial: Schedule) -> bool:
         """Whether the visit `trial` adds to `base` can stay: the stop itself and the walk into it both pass."""
-        stop, poi = trial.stops[-1], trial.here  # the candidate visit just added
-
-        # The stop: inside the window, open for the whole visit, no long wait.
-        if not StopGuards(stop, poi, self.window, self.rules).passes:
-            return False
-
-        if base.at_start:  # first stop: there is no walk leading to it
-            return True
-
-        # The walk from the previous stop: short enough, and enough time to cover it.
-        return LegGuards(base.stops[-1], base.here, stop, poi, self.rules).passes
+        prev_stop = base.stops[-1] if base.stops else None
+        return VisitGuards(prev_stop, trial.stops[-1], self.window, self.rules).passes
 
 
 def build_itinerary(
@@ -82,84 +70,47 @@ def build_itinerary(
     return ItineraryBuilder(window, rules).build(candidates, prefix)
 
 
+def _itinerary(window: TimeWindow, schedule: Schedule, rules: PlanningRules) -> Itinerary:
+    """The schedule's stops as an itinerary for the window, with the rules' assumptions."""
+    return Itinerary(window=window, stops=list(schedule), assumptions=rules.assumptions())
+
+
+def _first_valid(orders: Iterable[Sequence[POI]], window: TimeWindow, rules: PlanningRules) -> Itinerary | None:
+    """The itinerary of the first visiting order that passes validation, or None if none does."""
+    for order in orders:
+        itinerary = _itinerary(window, Schedule.of(order, window.start, rules.walking), rules)
+        if validate(itinerary, rules).ok:
+            return itinerary
+    return None
+
+
 def replace_stop(
     itinerary: Itinerary,
     index: int,
     candidates: Sequence[POI],
-    store: POIStore,
     rules: PlanningRules,
 ) -> Itinerary | None:
     """Swap stop `index` (1-based) for the first candidate that keeps the whole plan valid."""
-    pois = [store.get(pid) for pid in itinerary.poi_ids]
+    pois = itinerary.pois
     if not 1 <= index <= len(pois):
         raise ValueError(f"stop index {index} out of range 1..{len(pois)}")
     taken = set(itinerary.poi_ids)
-    for cand in candidates:
-        if cand.id in taken:
-            continue
-        order = [*pois[: index - 1], cand, *pois[index:]]
-        stops = list(Schedule.of(order, itinerary.window.start, rules.walking))
-        new = itinerary.model_copy(update={"stops": stops})
-        if validate(new, store, rules).ok:
-            return new
-    return None
-
-
-def replace_stop_for_preferences(
-    itinerary: Itinerary,
-    index: int,
-    pois: Sequence[POI],
-    prefs: Preferences,
-    *,
-    store: POIStore,
-    rules: PlanningRules,
-    ranker: Ranker | None = None,
-) -> Itinerary | None:
-    """Replace stop `index` (1-based) with a place matching `prefs`, or, if none fits, with one that matches every
-    preference except the interests; None if neither fits."""
-    for attempt in (prefs, prefs.without_interests()):
-        new = replace_stop(itinerary, index, select_candidates(pois, attempt, ranker), store, rules)
-        if new is not None:
-            return new
-    return None
-
-
-class Replan(BaseModel):
-    """An itinerary rebuilt from its first stop that no longer fits, and which stops it replaced."""
-
-    changed: bool
-    replaced: list[str] = []
-    itinerary: Itinerary
-    note: str = ""
-
-
-def replan_from_first_misfit(
-    itinerary: Itinerary,
-    fits: Callable[[Stop], bool],
-    candidates: Callable[[], Sequence[POI]],
-    store: POIStore,
-    rules: PlanningRules,
-) -> Replan:
-    """Keep the stops before the first one that fails `fits`, then fill the rest of the window from `candidates`.
-
-    `candidates` is called only when a stop fails; the window is unchanged.
-    """
-    first = next((i for i, stop in enumerate(itinerary.stops) if not fits(stop)), None)
-    if first is None:
-        return Replan(changed=False, itinerary=itinerary)
-    kept = [store.get(stop.poi_id) for stop in itinerary.stops[:first]]
-    new = build_itinerary(itinerary.window, candidates(), rules, prefix=kept)
-    replaced = [pid for pid in itinerary.poi_ids if pid not in new.poi_ids]
-    return Replan(changed=True, replaced=replaced, itinerary=new)
+    before, after = pois[: index - 1], pois[index:]
+    orders = ([*before, cand, *after] for cand in candidates if cand.id not in taken)
+    return _first_valid(orders, itinerary.window, rules)
 
 
 class FeasibilityReport(BaseModel):
-    feasible: bool
     available_minutes: int
     visit_minutes: int
     issues: list[Violation] = []
-    itinerary: Itinerary | None = None
+    itinerary: Itinerary | None = None  # a visiting order that passes validation
     alternative: Itinerary | None = None
+
+    @computed_field
+    @property
+    def feasible(self) -> bool:
+        return self.itinerary is not None
 
 
 def _reasons(pois: Sequence[POI], window: TimeWindow, rules: PlanningRules) -> list[Violation]:
@@ -167,29 +118,23 @@ def _reasons(pois: Sequence[POI], window: TimeWindow, rules: PlanningRules) -> l
     reasons = RequestGuards(pois, window).failures()
     for poi in pois:
         others = [other for other in pois if other.id != poi.id]
-        reasons += PlaceGuards(poi, others, window.start.date(), rules).failures(poi_id=poi.id)
+        reasons += PlaceGuards(poi, others, window.day, rules).failures(poi_id=poi.id)
     return reasons
 
 
-def check_requested(
-    pois: Sequence[POI], window: TimeWindow, store: POIStore, rules: PlanningRules
-) -> FeasibilityReport:
-    visit = sum(p.suggested_visit_minutes for p in pois)
+def check_requested(pois: Sequence[POI], window: TimeWindow, rules: PlanningRules) -> FeasibilityReport:
+    visit = visit_minutes(pois)
 
     # Feasible if any visiting order passes validation (all orders for small requests).
     orders = permutations(pois) if len(pois) <= MAX_PERMUTED else [tuple(pois)]
-    for order in orders:
-        stops = list(Schedule.of(order, window.start, rules.walking))
-        it = Itinerary(window=window, stops=stops, assumptions=rules.assumptions())
-        if validate(it, store, rules).ok:
-            return FeasibilityReport(feasible=True, available_minutes=window.minutes, visit_minutes=visit, itinerary=it)
+    itinerary = _first_valid(orders, window, rules)
+    if itinerary is not None:
+        return FeasibilityReport(available_minutes=window.minutes, visit_minutes=visit, itinerary=itinerary)
 
     # Otherwise explain why, and offer the best plan built from the places open that day.
-    day = window.start.date()
-    open_that_day = [p for p in pois if p.is_open_on(day)]
+    open_that_day = [p for p in pois if p.is_open_on(window.day)]
     alternative = build_itinerary(window, open_that_day, rules)
     return FeasibilityReport(
-        feasible=False,
         available_minutes=window.minutes,
         visit_minutes=visit,
         issues=_reasons(pois, window, rules),

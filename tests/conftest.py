@@ -1,14 +1,17 @@
+from typing import Any
 from datetime import date
 
 import pytest
 
 from langchain_core.messages import AIMessage
 from langchain_core.documents import Document
+from langchain_core.retrievers import BaseRetriever
 
-from corga import DATASET_PATH, RAIN_FIXTURE_PATH
+from corga import DATASET_PATH
 from corga.data.timeutil import at
 from corga.planning.rules import PlanningRules
-from corga.planning.models import TimeWindow
+from corga.planning.models import Itinerary, TimeWindow
+from corga.planning.schedule import Schedule
 
 MON, TUE, WED = date(2026, 10, 5), date(2026, 10, 6), date(2026, 10, 7)  # the test days; the rain fixture covers WED
 RULES = PlanningRules()
@@ -17,6 +20,12 @@ RULES = PlanningRules()
 def window(day: date, start: str, end: str) -> TimeWindow:
     """A time window on `day` from `start` to `end` (HH:MM, Europe/Athens)."""
     return TimeWindow(start=at(day, start), end=at(day, end))
+
+
+def itinerary(store, ids: list[str], scenario: TimeWindow) -> Itinerary:
+    """The places `ids` visited in that order from the start of `scenario`, with the rules' assumptions."""
+    stops = list(Schedule.of([store.get(i) for i in ids], scenario.start, RULES.walking))
+    return Itinerary(window=scenario, stops=stops, assumptions=RULES.assumptions())
 
 
 @pytest.fixture(scope="session")
@@ -47,16 +56,19 @@ class StubParser:
         return self._llm.requests.pop(0)
 
 
-class StubRetriever:
+class StubRetriever(BaseRetriever):
     """Search returns the configured ids; rank returns nothing, so candidates stay in id order."""
 
-    def __init__(self, store, ids):
-        self._store, self._ids = store, list(ids)
+    store: Any
+    ids: list[str]
+
+    def _get_relevant_documents(self, query, *, run_manager):
+        return self.search(query)
 
     def search(self, query, k=None, allowed_ids=None):
-        ids = [i for i in self._ids if allowed_ids is None or i in allowed_ids][: k or 4]
+        ids = [i for i in self.ids if allowed_ids is None or i in allowed_ids][: k or 4]
         return [
-            Document(page_content="", metadata={"id": i, "name": self._store.get(i).name, "score": 1.0}) for i in ids
+            Document(page_content="", metadata={"id": i, "name": self.store.get(i).name, "score": 1.0}) for i in ids
         ]
 
     def rank(self, query, allowed_ids):
@@ -65,11 +77,13 @@ class StubRetriever:
 
 @pytest.fixture
 def make_deps(store):
-    from corga.agent.deps import Deps
+    from corga.agent.guide import Guide
+    from corga.agent.runtime import Deps
     from corga.weather.fixture import FixtureWeather
 
-    def factory(requests, weather=None, hit_ids=("CF-001",)):
-        weather = weather or FixtureWeather(RAIN_FIXTURE_PATH)
-        return Deps(llm=StubLLM(requests), store=store, retriever=StubRetriever(store, hit_ids), weather=weather)
+    def factory(requests, hit_ids=("CF-001",), retriever=None):
+        retriever = retriever or StubRetriever(store=store, ids=list(hit_ids))
+        guide = Guide(store, RULES, retriever, FixtureWeather())
+        return Deps(llm=StubLLM(requests), guide=guide)
 
     return factory

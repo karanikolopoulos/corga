@@ -10,7 +10,7 @@ from corga.retrieval.documents import poi_to_document
 @pytest.fixture
 def retriever(store):
     pois = store.all()
-    return Retriever(build_index(pois, DeterministicFakeEmbedding(size=32)), size=len(pois), k=4)
+    return Retriever(store=build_index(pois, DeterministicFakeEmbedding(size=32)), size=len(pois), k=4)
 
 
 def test_document_carries_id_and_tags(store):
@@ -45,6 +45,6 @@ def test_minilm_finds_venetian_history(store):
 
     pois = store.all()
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    retriever = Retriever(build_index(pois, embeddings), size=len(pois), k=4)
+    retriever = Retriever(store=build_index(pois, embeddings), size=len(pois), k=4)
     venetian = {p.id for p in pois if "venetian" in p.tags}
     assert venetian & {d.metadata["id"] for d in retriever.search("Venetian history and fortifications")}

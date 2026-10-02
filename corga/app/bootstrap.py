@@ -8,8 +8,9 @@ from omegaconf import OmegaConf, DictConfig
 from hydra.utils import instantiate
 
 from corga import DATASET_PATH
-from corga.agent.deps import Deps
 from corga.data.store import POIStore
+from corga.agent.guide import Guide
+from corga.agent.runtime import Deps
 from corga.agent.templates import parse_prompt, respond_prompt
 from corga.retrieval.index import build_index
 from corga.retrieval.search import Retriever
@@ -36,12 +37,15 @@ def build_deps(cfg: DictConfig) -> Deps:
     store = POIStore.from_json(DATASET_PATH)
     embeddings = build(cfg.embedding)
     index = build_index(store.all(), embeddings, url=cfg.retrieval.qdrant_url, api_key=cfg.retrieval.qdrant_api_key)
+    guide = Guide(
+        store=store,
+        rules=build(cfg.rules),
+        retriever=Retriever(store=index, size=len(store.all()), k=cfg.retrieval.k),
+        weather=build(cfg.weather),
+    )
     return Deps(
         llm=build(cfg.provider),
-        store=store,
-        retriever=Retriever(index, size=len(store.all()), k=cfg.retrieval.k),
-        weather=build(cfg.weather),
-        rules=build(cfg.rules),
+        guide=guide,
         structured_method=cfg.structured_method,
         parse_prompt=parse_prompt(cfg.prompts.parse),
         respond_prompt=respond_prompt(cfg.prompts.respond),

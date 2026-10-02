@@ -1,17 +1,18 @@
 {# The factual part of every reply, in reading order. Each section opens with a blank line and renders only when
-   it has something to show. #}
-{% if feasibility and not feasibility.feasible %}
+   the result has something to show; a result whose kind has no such field skips the section. #}
+{% if result.feasibility is defined and result.feasibility and not result.feasibility.feasible %}
 
 **Why this does not fit:**
-{% for issue in feasibility.issues %}
+{% for issue in result.feasibility.issues %}
 - {{ issue.message }}
 {% endfor %}
-{% if feasibility.alternative %}
+{% if result.feasibility.alternative %}
 
 **Closest feasible alternative:**
 {% endif %}
 {% endif %}
-{% if itinerary %}
+{% if result.itinerary is defined and result.itinerary %}
+{% set itinerary = result.itinerary %}
 
 **Itinerary: {{ itinerary.window.start | day }}, {{ itinerary.window.start | hhmm }}–{{ itinerary.window.end | hhmm }}**
 
@@ -28,30 +29,31 @@
 {% endfor %}
 {% endif %}
 {% endif %}
-{% if validation and validation.violations %}
+{% if result.validation is defined and result.validation and result.validation.violations %}
 
 **Checks:**
-{% for v in validation.violations %}
+{% for v in result.validation.violations %}
 - [{{ v.severity }}] {{ v.message }}
 {% endfor %}
 {% endif %}
-{% if items %}
+{% if result.items is defined and result.items %}
 
-{% for i in items %}
+{% for i in result.items %}
 - {{ i.name }} ({{ i.id }}): {{ i.category }}, {{ i.setting }}
 {% endfor %}
 {% endif %}
-{% if hours %}
+{% if result.hours is defined and result.hours %}
 
-**Forecast ({{ source }})**
+**Forecast ({{ result.source }})**
 
 | Hour | Rain (mm) | Conditions | °C |
 |---|---|---|---|
-{% for h in hours %}
-| {{ h.time }} | {{ h.precipitation_mm }} | {{ h.description }} | {{ h.temperature_c }} |
+{% for h in result.hours %}
+| {{ h.time | weekday_hour }} | {{ h.precipitation_mm }} | {{ h.description }} | {{ h.temperature_c }} |
 {% endfor %}
 {% endif %}
-{% if sources %}
+{% if result.citations is defined and result.citations %}
 
-**Sources (dataset records):** {{ sources | join("; ") }}
+**Sources (dataset records):** {% for c in result.citations %}{{ c.id }} {{ c.name }}{{ "; " if not loop.last }}{% endfor %}
+
 {% endif %}

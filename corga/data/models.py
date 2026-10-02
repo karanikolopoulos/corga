@@ -14,6 +14,7 @@ class Location(BaseModel):
 
 
 class POI(BaseModel):
+    # By field name too: restoring a checkpoint rebuilds each place as POI(**model_dump()), which uses field names.
     model_config = ConfigDict(populate_by_name=True)
 
     id: str

@@ -22,13 +22,12 @@ def visit_start(poi: POI, arrive: datetime) -> datetime:
 class Schedule:
     walking: WalkingModel
     clock: datetime  # when the visitor is free to walk on
-    here: POI | None = None  # the last POI visited
     stops: tuple[Stop, ...] = ()
 
     @property
-    def at_start(self) -> bool:
-        """Nothing visited yet."""
-        return not self.stops
+    def here(self) -> POI | None:
+        """The last POI visited."""
+        return self.stops[-1].poi if self.stops else None
 
     @classmethod
     def of(cls, pois: Sequence[POI], start_at: datetime, walking: WalkingModel) -> Self:
@@ -44,10 +43,8 @@ class Schedule:
         arrive = self.clock + timedelta(minutes=walk)  # set off when free, arrive after the walk
         start = visit_start(poi, arrive)  # wait for opening if needed
         end = start + timedelta(minutes=poi.suggested_visit_minutes)  # stay for the suggested visit
-        stop = Stop(  # the visit as it appears in the itinerary
-            poi_id=poi.id, name=poi.name, setting=poi.setting, walk_minutes=walk, arrive=arrive, start=start, end=end
-        )
-        return replace(self, clock=end, here=poi, stops=(*self.stops, stop))  # free again at `end`, now at `poi`
+        stop = Stop(poi=poi, walk_minutes=walk, arrive=arrive, start=start, end=end)
+        return replace(self, clock=end, stops=(*self.stops, stop))  # free again at `end`, now at `poi`
 
     def __iter__(self) -> Iterator[Stop]:
         yield from self.stops

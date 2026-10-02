@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 
 class Session(Protocol):
-    """What the loop needs from a conversation; `corga.agent.session.ChatSession` provides it."""
+    """What the loop needs from a conversation; `corga.agent.runtime.ChatSession` provides it."""
 
     id: str
 
