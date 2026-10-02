@@ -4,9 +4,8 @@ from pathlib import Path
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 
+from corga.tracing import JsonlTracer
 from corga.agent.state import AgentState
-from corga.agent.tracing import JsonlTracer
-from corga.agent.templates import state_summary
 from corga.agent.runtime.deps import Deps
 from corga.agent.runtime.graph import AgentGraph
 
@@ -40,7 +39,7 @@ class ChatSession:
 
     def summary(self) -> str:
         """The session state as the parser sees it: time window, preferences, current itinerary."""
-        return state_summary(self.state())
+        return self.deps.prompts["state"].render(state=self.state())
 
     def close(self) -> None:
         """Drop this conversation's checkpoints from the checkpointer, then close the trace file."""

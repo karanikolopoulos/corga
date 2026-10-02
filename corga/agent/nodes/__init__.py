@@ -1,7 +1,8 @@
 """Graph nodes. Each takes the state plus the runtime (whose context is `Deps`) and returns an `Update`.
 
 `result` is the turn's structured outcome: the handlers fill it, `respond` frames it (LLM) and renders it (template).
-Handlers call the planning steps, dataset lookups and forecast through `runtime.context.guide`.
+Handlers pick a use case from the parsed request and call it on a use-case service in the runtime context
+(`answers` or `itineraries`); the weather handler first calls the weather tool.
 """
 
 from corga.agent.nodes.plan import plan, edit_plan

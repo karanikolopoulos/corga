@@ -2,18 +2,18 @@
 
 import re
 
-from typing import Any
-
 from omegaconf import OmegaConf, DictConfig
 from hydra.utils import instantiate
+from langchain_core.language_models import BaseChatModel
 
-from corga import DATASET_PATH
-from corga.data.store import POIStore
-from corga.agent.guide import Guide
 from corga.agent.runtime import Deps
-from corga.agent.templates import parse_prompt, respond_prompt
-from corga.retrieval.index import build_index
-from corga.retrieval.search import Retriever
+from corga.domain.weather import WeatherProvider
+from corga.services.ports import PlaceSearch, PlaceCatalog
+from corga.services.steps import PlanningSteps
+from corga.services.places import PlaceFinder
+from corga.services.answers import Answers
+from corga.services.itineraries import Itineraries
+from corga.domain.planning.rules import PlanningRules
 
 
 def sanitize(value: str) -> str:
@@ -27,26 +27,19 @@ def register_resolvers() -> None:
         OmegaConf.register_new_resolver("sanitize", sanitize)
 
 
-def build(node: DictConfig) -> Any:
-    """Instantiate a `_target_` node with plain dicts and lists for nested options."""
-    return instantiate(node, _convert_="all")
-
-
 def build_deps(cfg: DictConfig) -> Deps:
     """Everything the graph needs, built once per process from the composed config."""
-    store = POIStore.from_json(DATASET_PATH)
-    embeddings = build(cfg.embedding)
-    index = build_index(store.all(), embeddings, url=cfg.retrieval.qdrant_url, api_key=cfg.retrieval.qdrant_api_key)
-    guide = Guide(
-        store=store,
-        rules=build(cfg.rules),
-        retriever=Retriever(store=index, size=len(store.all()), k=cfg.retrieval.k),
-        weather=build(cfg.weather),
-    )
+    store: PlaceCatalog = instantiate(cfg.store)
+    retriever: PlaceSearch = instantiate(cfg.retrieval, pois=store.all())  # the POIs exist only once the store is built
+    rules: PlanningRules = instantiate(cfg.rules)
+    llm: BaseChatModel = instantiate(cfg.provider)
+    weather: WeatherProvider = instantiate(cfg.weather)
+    places = PlaceFinder(store, retriever)
+    steps = PlanningSteps(store, rules, ranker=retriever.rank)
     return Deps(
-        llm=build(cfg.provider),
-        guide=guide,
+        llm=llm,
+        answers=Answers(places, steps),
+        itineraries=Itineraries(steps, places),
+        weather=weather,
         structured_method=cfg.structured_method,
-        parse_prompt=parse_prompt(cfg.prompts.parse),
-        respond_prompt=respond_prompt(cfg.prompts.respond),
     )

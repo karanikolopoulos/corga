@@ -1,14 +1,13 @@
-"""Checking the itinerary a result carries, and keeping it in state only if it is valid."""
+"""The node update for a turn's result: the result, and the plan the conversation keeps."""
 
-from corga.agent.guide import Guide
 from corga.agent.state import Update
-from corga.agent.results import PlanResult, WeatherResult
-from corga.planning.models import Itinerary
+from corga.services.results import Result, PlannedResult
+from corga.domain.planning.models import Itinerary
 
 
-def planned(guide: Guide, result: PlanResult | WeatherResult, previous: Itinerary | None) -> Update:
-    """Validate the result's itinerary and keep it in state only if it is valid (else `previous`)."""
-    itinerary = result.itinerary
-    result.validation = guide.validate(itinerary)
-    kept = itinerary if result.validation.ok else previous
+def remember(result: Result, previous: Itinerary | None) -> Update:
+    """The result and, when it carries an itinerary, that itinerary if it passed validation, else `previous`."""
+    if not isinstance(result, PlannedResult) or result.itinerary is None:
+        return {"result": result}
+    kept = result.itinerary if result.validation.ok else previous
     return {"itinerary": kept, "result": result}

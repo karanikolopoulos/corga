@@ -9,8 +9,8 @@ from pydantic import Field, BaseModel, field_validator
 from langchain_core.messages import AnyMessage, HumanMessage
 from langgraph.graph.message import add_messages
 
-from corga.agent.results import Result
-from corga.planning.models import Itinerary, TimeWindow, Preferences, PreferredSetting, normalize_interests
+from corga.services.results import Result
+from corga.domain.planning.models import Itinerary, TimeWindow, Preferences, PreferredSetting, normalize_interests
 
 Intent = Literal["question", "recommend", "plan", "edit_plan", "weather", "out_of_scope"]
 PREFERENCE_FIELDS = ("with_child", "avoid_museums", "setting")
@@ -83,6 +83,13 @@ class AgentState:
     @property
     def day(self) -> dt.date | None:
         return self.window.day if self.window else None
+
+    @property
+    def parsed(self) -> ParsedRequest:
+        """This turn's request, which `parse` sets before any handler runs."""
+        if self.request is None:
+            raise RuntimeError("no parsed request: `parse` runs before every handler")
+        return self.request
 
     @property
     def question(self) -> str:

@@ -1,16 +1,9 @@
 # The settings every run uses; chat.yaml adds the weather source and the run folder.
 defaults:
-  - provider: vllm  # the chat model; `+model=...` overrides its default model
+  - provider: vllm  # `+model=...` overrides its default model
   - embedding: minilm
+  - store: poi
+  - retrieval: qdrant
   - rules
 
-structured_method: function_calling  # how the parser gets a ParsedRequest: function_calling | json_schema | json_mode
-
-prompts:  # file names in corga/agent/templates/; a variant is a new file, e.g. prompts.parse=parse_terse.md
-  parse: parse.md
-  respond: respond.md
-
-retrieval:
-  k: 4
-  qdrant_url: ${oc.env:QDRANT_URL,null}  # unset: in-memory index; set: e.g. http://qdrant:6333
-  qdrant_api_key: ${oc.env:QDRANT_API_KEY,null}  # only for Qdrant Cloud
+structured_method: function_calling  # function_calling | json_schema | json_mode

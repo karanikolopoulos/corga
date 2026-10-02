@@ -1,4 +1,4 @@
-_target_: corga.weather.open_meteo.OpenMeteoWeather
-latitude: 39.6243  # Corfu Town
+_target_: corga.adapters.weather.open_meteo.OpenMeteoWeather
+latitude: 39.6243
 longitude: 19.9217
 timeout_s: 10

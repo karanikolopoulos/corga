@@ -5,7 +5,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.checkpoint.memory import InMemorySaver
 
 from corga.agent.nodes import plan, parse, answer, refuse, respond, weather, edit_plan, recommend
-from corga.agent.state import Intent, AgentState, ParsedRequest
+from corga.agent.state import Intent, AgentState
 from corga.agent.runtime.deps import Deps
 
 Handler = Literal["answer", "recommend", "plan", "edit_plan", "weather", "refuse"]
@@ -24,7 +24,7 @@ AgentGraph = CompiledStateGraph[AgentState, Deps, AgentState, AgentState]  # sta
 
 def route(state: AgentState) -> Handler:
     """The handler for this turn; a request to invent or ignore the dataset is refused whatever its intent."""
-    request: ParsedRequest = state.request
+    request = state.parsed
     return "refuse" if request.wants_fabrication else ROUTES[request.intent]
 
 
