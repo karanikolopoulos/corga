@@ -2,9 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    branches: ["**"]
 
 jobs:
   quality:
@@ -28,3 +26,19 @@ jobs:
 
       - name: Run quality checks
         run: uv run poe quality
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.12.19"
+          enable-cache: true
+
+      - name: Install project and dev tools
+        run: uv sync --locked
+
+      - name: Run tests
+        run: uv run poe test

@@ -22,3 +22,7 @@ args = [{ name = "path", default = ".", positional = true, multiple = true }]
 [tasks.quality]
 help = "Run all pre-commit hooks on all files"
 cmd = "pre-commit run --all-files"
+
+[tasks.test]
+help = "Run the unit test suite (pass extra pytest args after --)"
+cmd = "pytest"

@@ -25,6 +25,9 @@ ignore = [
     "W191",    # indentation-with-tabs, handled by ruff-format
 ]
 
+[lint.per-file-ignores]
+"tests/**" = ["PLC0415", "PLR2004"] # lazy imports in fixtures; literal expected values
+
 [lint.isort]
 from-first = false
 length-sort = true
