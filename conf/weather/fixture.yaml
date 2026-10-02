@@ -1,0 +1,1 @@
+_target_: corga.weather.fixture.FixtureWeather  # the dated rain scenario; defaults to the bundled fixture

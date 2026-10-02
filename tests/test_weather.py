@@ -3,13 +3,12 @@ from datetime import date
 import httpx
 import pytest
 
-from corga.paths import RAIN_FIXTURE_PATH
+from corga import RAIN_FIXTURE_PATH
+from tests.conftest import WED
 from corga.data.timeutil import at
 from corga.weather.models import HourlyWeather, WeatherUnavailable
 from corga.weather.fixture import FixtureWeather
 from corga.weather.open_meteo import OpenMeteoWeather
-
-WED = date(2026, 10, 7)
 
 RECORDED = {
     "hourly": {
@@ -71,3 +70,18 @@ def test_live_open_meteo_next_24_hours():
     start = now().replace(minute=0, second=0, microsecond=0)
     hours = OpenMeteoWeather(39.6243, 19.9217).hourly(start, start + timedelta(hours=24))
     assert len(hours) == 24
+
+
+def test_hourly_weather_is_always_athens_time():
+    from corga.data.timeutil import TZ
+    from corga.weather.models import HourlyWeather
+
+    wall_clock = HourlyWeather(time="2026-10-07T15:00")  # fixture and Open-Meteo style: no offset
+    utc = HourlyWeather(time="2026-10-07T12:00:00+00:00")
+    assert wall_clock.time.tzinfo == TZ and wall_clock.time.hour == 15
+    assert utc.time == wall_clock.time and utc.time.tzinfo == TZ  # 12:00 UTC is 15:00 in Athens (EEST)
+
+
+def test_providers_say_where_the_forecast_comes_from():
+    assert FixtureWeather(RAIN_FIXTURE_PATH).label == "fixture (synthetic rain, corfu_synthetic_rain.json)"
+    assert OpenMeteoWeather(39.62, 19.92).label == "live (Open-Meteo)"

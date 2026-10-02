@@ -1,0 +1,9 @@
+defaults:
+  - _self_
+  - base
+  - weather: live
+  - hydra: settings
+
+hydra:
+  run:
+    dir: runs/chat/${hydra:runtime.choices.provider}/${sanitize:${provider.model}}/${now:%Y-%m-%dT%H-%M-%S}

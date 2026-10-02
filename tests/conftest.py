@@ -1,9 +1,22 @@
+from datetime import date
+
 import pytest
 
 from langchain_core.messages import AIMessage
 from langchain_core.documents import Document
 
-from corga.paths import DATASET_PATH, RAIN_FIXTURE_PATH
+from corga import DATASET_PATH, RAIN_FIXTURE_PATH
+from corga.data.timeutil import at
+from corga.planning.rules import PlanningRules
+from corga.planning.models import TimeWindow
+
+MON, TUE, WED = date(2026, 10, 5), date(2026, 10, 6), date(2026, 10, 7)  # the test days; the rain fixture covers WED
+RULES = PlanningRules()
+
+
+def window(day: date, start: str, end: str) -> TimeWindow:
+    """A time window on `day` from `start` to `end` (HH:MM, Europe/Athens)."""
+    return TimeWindow(start=at(day, start), end=at(day, end))
 
 
 @pytest.fixture(scope="session")

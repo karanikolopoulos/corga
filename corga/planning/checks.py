@@ -1,4 +1,4 @@
-"""Deterministic hard-constraint checks. The LLM never decides feasibility."""
+"""Deterministic hard-constraint checks on an itinerary."""
 
 from itertools import pairwise
 
@@ -22,5 +22,5 @@ def validate(itinerary: Itinerary, store: POIStore, rules: PlanningRules) -> Val
     for n, ((prev_stop, prev_poi), (stop, poi)) in enumerate(pairwise(visits), start=2):
         violations += LegGuards(prev_stop, prev_poi, stop, poi, rules).failures(stop=n, poi_id=poi.id)
 
-    # Every failure is kept, so an infeasible plan can explain all of its reasons; warnings do not make it invalid.
+    # All failures are kept; only errors make the itinerary invalid.
     return ValidationResult(violations=violations)

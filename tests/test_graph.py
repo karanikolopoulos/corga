@@ -1,37 +1,42 @@
-from datetime import date, time
+"""The agent end to end through `ChatSession`, as the REPL and the eval drive it; the LLM is scripted."""
+
+from datetime import time
 
 import pytest
 
-from langchain_core.messages import HumanMessage
-
+from tests.conftest import TUE, WED
 from corga.agent.graph import build_graph
-from corga.agent.state import ParsedRequest
+from corga.agent.state import AgentState, ParsedRequest
+from corga.agent.session import ChatSession
 from corga.data.timeutil import at
-
-TUE, WED = date(2026, 10, 6), date(2026, 10, 7)
 
 
 @pytest.fixture
-def graph():
-    return build_graph()
+def chat(make_deps):
+    """Start untraced chat sessions on one graph; each gets the scripted requests (or given deps)."""
+    graph = build_graph()
+
+    def start(requests=(), *, deps=None, session_id=None, **deps_options):
+        return ChatSession(graph, deps or make_deps(requests, **deps_options), None, session_id=session_id)
+
+    return start
 
 
-def run(graph, deps, thread, text="..."):
-    """One user turn on `thread`; returns the state after it."""
-    config = {"configurable": {"thread_id": thread}}
-    graph.invoke({"messages": [HumanMessage(text)]}, config, context=deps)
-    return graph.get_state(config).values
+def turn(session: ChatSession, text: str = "...") -> AgentState:
+    """Send one message and return the session state after it."""
+    session.send(text)
+    return session.state()
 
 
-def test_replace_second_stop_keeps_the_rest(graph, make_deps, store):
-    deps = make_deps(
+def test_replace_second_stop_keeps_the_rest(chat, store):
+    session = chat(
         [
             ParsedRequest(intent="plan", date=TUE, start_time=time(11), end_time=time(15), interests=["history"]),
             ParsedRequest(intent="edit_plan", stop_index=2, with_child=True),
         ]
     )
-    first = run(graph, deps, "b")["itinerary"]
-    final = run(graph, deps, "b")
+    first = turn(session)["itinerary"]
+    final = turn(session)
     it = final["itinerary"]
     assert first.poi_ids == ["CF-001", "CF-003", "CF-005", "CF-006", "CF-007"]
     assert it.poi_ids == ["CF-001", "CF-009", "CF-005", "CF-006", "CF-007"]
@@ -40,7 +45,7 @@ def test_replace_second_stop_keeps_the_rest(graph, make_deps, store):
     assert final["preferences"].interests == ["history"] and final["result"]["validation"]["ok"]
 
 
-def test_named_places_are_infeasible_with_alternative(graph, make_deps):
+def test_named_places_are_infeasible_with_alternative(chat):
     names = [
         "Old Fortress",
         "New Fortress",
@@ -49,7 +54,7 @@ def test_named_places_are_infeasible_with_alternative(graph, make_deps):
         "Museum of Asian Art",
     ]
     request = ParsedRequest(intent="plan", date=TUE, start_time=time(11), end_time=time(12, 30), requested_places=names)
-    state = run(graph, make_deps([request]), "c")
+    state = turn(chat([request]))
     feasibility = state["result"]["feasibility"]
     found = {(i["code"], i["poi_id"]) for i in feasibility["issues"]}
     assert feasibility["feasible"] is False
@@ -57,8 +62,8 @@ def test_named_places_are_infeasible_with_alternative(graph, make_deps):
     assert state["itinerary"].poi_ids == ["CF-001"]
 
 
-def test_weather_fixture_replans_within_window(graph, make_deps):
-    deps = make_deps(
+def test_weather_fixture_replans_within_window(chat):
+    session = chat(
         [
             ParsedRequest(
                 intent="plan",
@@ -66,20 +71,20 @@ def test_weather_fixture_replans_within_window(graph, make_deps):
                 start_time=time(13),
                 end_time=time(17),
                 interests=["history"],
-                outdoor_only=True,
+                setting="outdoor",
             ),
             ParsedRequest(intent="weather", date=WED, start_time=time(13), end_time=time(17)),
         ]
     )
-    assert run(graph, deps, "d")["itinerary"].poi_ids == ["CF-002", "CF-003", "CF-005", "CF-006", "CF-009"]
-    final = run(graph, deps, "d")
+    assert turn(session)["itinerary"].poi_ids == ["CF-001", "CF-003", "CF-005", "CF-006", "CF-009"]
+    final = turn(session)
     assert final["result"]["source"] == "fixture" and final["result"]["adaptation"]["changed"]
-    assert final["itinerary"].poi_ids == ["CF-002", "CF-003", "CF-007", "CF-017"]
+    assert final["itinerary"].poi_ids == ["CF-001", "CF-003", "CF-007"]
     assert (final["window"].start, final["window"].end) == (at(WED, "13:00"), at(WED, "17:00"))
 
 
-def test_refusals(graph, make_deps):
-    deps = make_deps(
+def test_refusals(chat):
+    session = chat(
         [
             ParsedRequest(intent="plan", wants_fabrication=True),
             ParsedRequest(
@@ -87,40 +92,70 @@ def test_refusals(graph, make_deps):
             ),
         ]
     )
-    assert run(graph, deps, "h")["result"] == {"kind": "refusal", "reason": "fabrication_or_ignore_dataset"}
-    second = run(graph, deps, "h")["result"]
+    assert turn(session)["result"] == {"kind": "refusal", "reason": "fabrication_or_ignore_dataset"}
+    second = turn(session)["result"]
     assert second["reason"] == "not_in_dataset" and second["names"] == ["Corfu Aquarium"]
 
 
-def test_unsupported_facts_are_flagged_not_answered(graph, make_deps):
+def test_unsupported_facts_are_flagged_not_answered(chat):
     question = "Can I buy tickets for the Achilleion online, and when is Saint Spyridon open?"
     request = ParsedRequest(
         intent="question", question=question, requested_places=["Achilleion Palace", "Saint Spyridon Church"]
     )
-    result = run(graph, make_deps([request], hit_ids=("CF-021",)), "g")["result"]
+    result = turn(chat([request], hit_ids=("CF-021",)))["result"]
     facts = {f["id"]: f for f in result["facts"]}
     assert "tickets" in result["unsupported_topics"]
     assert facts["CF-004"]["opening_hours"] is None and "CF-021" in result["citations"]
+    assert facts["CF-021"]["score"] == 1.0  # returned by the (stub) search
+    assert facts["CF-004"]["score"] is None  # named by the user, not returned by the search
 
 
-def test_reply_contains_rendered_plan_and_sources(graph, make_deps):
+def test_reply_contains_rendered_plan_and_sources(chat):
     request = ParsedRequest(intent="plan", date=TUE, start_time=time(11), end_time=time(15), interests=["history"])
-    reply = run(graph, make_deps([request]), "r")["messages"][-1].content
+    reply = chat([request]).send("...")
     assert reply.startswith("Here is what I found.")
     assert "| 1 | Old Fortress (CF-001) |" in reply and "Sources (dataset records)" in reply
 
 
-def test_missing_window_asks_for_it(graph, make_deps):
-    deps = make_deps([ParsedRequest(intent="plan", interests=["history"])])
-    assert run(graph, deps, "w")["result"]["kind"] == "need_info"
+def test_missing_window_asks_for_it(chat):
+    assert turn(chat([ParsedRequest(intent="plan", interests=["history"])]))["result"]["kind"] == "need_info"
 
 
-def test_threads_are_isolated(graph, make_deps):
+def test_sessions_are_isolated(chat, make_deps):
     deps = make_deps(
         [
             ParsedRequest(intent="plan", date=TUE, start_time=time(11), end_time=time(15), interests=["history"]),
             ParsedRequest(intent="edit_plan", stop_index=2),
         ]
     )
-    run(graph, deps, "one")
-    assert run(graph, deps, "two")["result"] == {"kind": "need_info", "missing": "an existing itinerary to edit"}
+    turn(chat(deps=deps, session_id="one"))
+    second = turn(chat(deps=deps, session_id="two"))  # same graph and deps, another thread
+    assert second["result"] == {"kind": "need_info", "missing": "an existing itinerary to edit"}
+
+
+def test_a_whole_plan_edit_applies_the_new_setting_and_keeps_fitting_stops(chat, store):
+    session = chat(
+        [
+            ParsedRequest(
+                intent="plan", date=TUE, start_time=time(11), end_time=time(15), interests=["history"], setting="indoor"
+            ),
+            ParsedRequest(intent="edit_plan", setting="outdoor"),  # "make it outdoor instead": no stop number
+        ]
+    )
+    indoor = turn(session)["itinerary"]
+    assert {store.get(pid).setting for pid in indoor.poi_ids} == {"indoor"}
+    final = turn(session)
+    assert {store.get(pid).setting for pid in final["itinerary"].poi_ids} <= {"outdoor", "mixed"}
+    assert final["preferences"].setting == "outdoor" and final["result"]["adaptation"]["changed"]
+    assert final["window"] == indoor.window and final["result"]["validation"]["ok"]
+
+
+def test_an_edit_with_neither_a_stop_nor_a_preference_asks_which_stop(chat):
+    session = chat(
+        [
+            ParsedRequest(intent="plan", date=TUE, start_time=time(11), end_time=time(15), interests=["history"]),
+            ParsedRequest(intent="edit_plan"),
+        ]
+    )
+    turn(session)
+    assert turn(session)["result"]["kind"] == "need_info"

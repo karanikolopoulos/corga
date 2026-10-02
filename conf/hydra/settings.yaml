@@ -1,0 +1,5 @@
+# Normal runs: a folder per run (set by each entry point) holding the traces, the log and the resolved config.
+defaults:
+  - override job_logging: simple
+job:
+  chdir: false

@@ -1,12 +1,18 @@
-from typing import Literal
+from typing import Self, Literal
 from datetime import datetime
 
-from pydantic import BaseModel, computed_field, model_validator
+from pydantic import BaseModel, computed_field, field_validator, model_validator
 
 from corga.data.models import Setting
 from corga.data.timeutil import Interval
 
 Severity = Literal["error", "warning"]
+PreferredSetting = Literal["indoor", "outdoor"]  # what a visitor asks for; places are also labelled "mixed"
+
+
+def normalize_interests(interests: list[str]) -> list[str]:
+    """Interest keywords lowercased and trimmed, empty ones dropped."""
+    return [cleaned for interest in interests if (cleaned := interest.strip().lower())]
 
 
 class TimeWindow(BaseModel):
@@ -14,7 +20,7 @@ class TimeWindow(BaseModel):
     end: datetime
 
     @model_validator(mode="after")
-    def _check(self) -> "TimeWindow":
+    def _check(self) -> Self:
         if self.start.tzinfo is None or self.end.tzinfo is None:
             raise ValueError("time window must be timezone-aware")
         if self.end <= self.start:
@@ -76,13 +82,17 @@ class Preferences(BaseModel):
     interests: list[str] = []
     with_child: bool = False
     avoid_museums: bool = False
-    outdoor_only: bool = False
-    indoor_only: bool = False
+    setting: PreferredSetting | None = None  # None: any setting
 
-    def without_interests(self) -> "Preferences":
+    @field_validator("interests")
+    @classmethod
+    def _normalized(cls, interests: list[str]) -> list[str]:
+        return normalize_interests(interests)
+
+    def without_interests(self) -> Self:
         """The same constraints (child, museums, setting) with no topic preference."""
         return self.model_copy(update={"interests": []})
 
-    def indoor(self) -> "Preferences":
+    def indoor(self) -> Self:
         """The same preferences restricted to indoor places, e.g. for rain."""
-        return self.model_copy(update={"outdoor_only": False, "indoor_only": True})
+        return self.model_copy(update={"setting": "indoor"})

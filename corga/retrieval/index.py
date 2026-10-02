@@ -14,11 +14,7 @@ COLLECTION = "pois"
 def build_index(
     pois: Sequence[POI], embeddings: Embeddings, url: str | None = None, api_key: str | None = None
 ) -> QdrantVectorStore:
-    """Embed the POIs into a fresh collection: in memory, or on the Qdrant server at `url` (`api_key` for Qdrant Cloud).
-
-    Rebuilt at every start: 50 short descriptions embed in a fraction of a second, so persisting the index would
-    add state without saving time.
-    """
+    """Embed the POIs into a fresh collection: in memory, or on the Qdrant server at `url` (`api_key`: Cloud)."""
     return QdrantVectorStore.from_documents(
         [poi_to_document(poi) for poi in pois],
         embeddings,

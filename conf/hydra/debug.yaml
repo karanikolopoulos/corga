@@ -1,0 +1,10 @@
+# Quick local runs, nothing written: no run folder, no .hydra/ copy, Hydra's and the job's logging disabled.
+# Use: python -m corga hydra=debug
+defaults:
+  - override hydra_logging: disabled
+  - override job_logging: disabled
+job:
+  chdir: false
+run:
+  dir: .
+output_subdir: null

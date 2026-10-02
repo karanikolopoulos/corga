@@ -16,8 +16,7 @@ class Retriever:
         Each document keeps only `id` and `name` from the index, plus `score` (cosine similarity: higher is closer);
         store internals such as Qdrant's `_id` are dropped.
         """
-        # Score every POI, then filter in Python: instant for 50 documents and independent of the store's
-        # filter syntax (Qdrant could filter natively with a `FieldCondition` on `metadata.id`).
+        # Score every POI, then keep the allowed ones.
         pairs = self._store.similarity_search_with_score(query, k=self._size)
         docs = [
             Document(

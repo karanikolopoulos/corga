@@ -16,6 +16,9 @@ wheels/
 !.env.example
 .vscode/
 .claude/
+runs/
+outputs/
+multirun/
 
 # Misc
 *.pdf

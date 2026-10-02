@@ -1,10 +1,11 @@
-"""Everything that produces a plan: build one greedily, replace one stop, or try requested places in every order."""
+"""Everything that produces a plan: build one greedily, replace one stop, rebuild from the first stop that no longer
+fits, or try requested places in every order."""
 
 from typing import NamedTuple
 from operator import attrgetter
 from itertools import permutations
 from dataclasses import dataclass
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from pydantic import BaseModel
 
@@ -13,8 +14,9 @@ from corga.data.models import POI
 from corga.planning.rules import PlanningRules
 from corga.planning.checks import validate
 from corga.planning.guards import LegGuards, StopGuards, PlaceGuards, RequestGuards
-from corga.planning.models import Itinerary, Violation, TimeWindow
+from corga.planning.models import Stop, Itinerary, Violation, TimeWindow, Preferences
 from corga.planning.schedule import Schedule
+from corga.planning.candidates import Ranker, select_candidates
 
 MAX_PERMUTED = 6  # requested places up to this count are tried in every order
 
@@ -101,6 +103,54 @@ def replace_stop(
         if validate(new, store, rules).ok:
             return new
     return None
+
+
+def replace_stop_for_preferences(
+    itinerary: Itinerary,
+    index: int,
+    pois: Sequence[POI],
+    prefs: Preferences,
+    *,
+    store: POIStore,
+    rules: PlanningRules,
+    ranker: Ranker | None = None,
+) -> Itinerary | None:
+    """Replace stop `index` (1-based) with a place matching `prefs`, or, if none fits, with one that matches every
+    preference except the interests; None if neither fits."""
+    for attempt in (prefs, prefs.without_interests()):
+        new = replace_stop(itinerary, index, select_candidates(pois, attempt, ranker), store, rules)
+        if new is not None:
+            return new
+    return None
+
+
+class Replan(BaseModel):
+    """An itinerary rebuilt from its first stop that no longer fits, and which stops it replaced."""
+
+    changed: bool
+    replaced: list[str] = []
+    itinerary: Itinerary
+    note: str = ""
+
+
+def replan_from_first_misfit(
+    itinerary: Itinerary,
+    fits: Callable[[Stop], bool],
+    candidates: Callable[[], Sequence[POI]],
+    store: POIStore,
+    rules: PlanningRules,
+) -> Replan:
+    """Keep the stops before the first one that fails `fits`, then fill the rest of the window from `candidates`.
+
+    `candidates` is called only when a stop fails; the window is unchanged.
+    """
+    first = next((i for i, stop in enumerate(itinerary.stops) if not fits(stop)), None)
+    if first is None:
+        return Replan(changed=False, itinerary=itinerary)
+    kept = [store.get(stop.poi_id) for stop in itinerary.stops[:first]]
+    new = build_itinerary(itinerary.window, candidates(), rules, prefix=kept)
+    replaced = [pid for pid in itinerary.poi_ids if pid not in new.poi_ids]
+    return Replan(changed=True, replaced=replaced, itinerary=new)
 
 
 class FeasibilityReport(BaseModel):

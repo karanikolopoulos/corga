@@ -1,13 +1,13 @@
 """Everything in the templates folder: the two prompts sent to the LLM, and the markdown layout of every reply.
 
 Prompts are plain text with LangChain `{name}` placeholders; the reply is a Jinja2 template, filled here with the
-turn's result. Prompts are chosen by file name, so a variant is a new file rather than a code change.
+turn's result. Prompts are chosen by file name.
 """
 
 from jinja2 import Environment, StrictUndefined, FileSystemLoader
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-from corga.paths import TEMPLATES_DIR
+from corga import TEMPLATES_DIR
 from corga.data.store import POIStore
 from corga.agent.state import Result
 from corga.planning.models import Itinerary
@@ -36,7 +36,7 @@ _env = Environment(
     loader=FileSystemLoader(TEMPLATES_DIR),
     trim_blocks=True,  # a line holding only {% ... %} leaves no empty line behind
     lstrip_blocks=True,
-    undefined=StrictUndefined,  # a typo in the template raises instead of rendering nothing
+    undefined=StrictUndefined,  # a missing value raises an error
     autoescape=False,  # markdown, not HTML
 )
 _env.filters["hhmm"] = lambda t: f"{t:%H:%M}"

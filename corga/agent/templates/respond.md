@@ -4,6 +4,6 @@ Use only facts that appear in RESULT. Do not repeat stop times or tables; they a
 - unsupported_topics or unknown_places present: say clearly that the dataset has no information; do not guess.
 - opening_hours null: say the hours are not confirmed.
 - feasibility.feasible false: explain why using feasibility.issues and point to the alternative if present.
-- adaptation.changed true: explain the weather-driven change and name the rain period.
+- adaptation present: explain what changed using adaptation.note; for weather, name the rain period from wet_periods.
 - need_info / edit_failed / weather_unavailable: say what is missing or failed, plainly.
 Never present tickets, prices, bookings or live opening status as known.

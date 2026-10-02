@@ -5,18 +5,20 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-from corga.data.timeutil import TZ, Interval
+from corga import RAIN_FIXTURE_PATH
+from corga.data.timeutil import Interval
 from corga.weather.models import HourlyWeather, WeatherUnavailable
 
 
 class FixtureWeather:
     source = "fixture"
 
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path = RAIN_FIXTURE_PATH):
+        self.label = f"fixture (synthetic rain, {Path(path).name})"
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
         self._hours = [
             HourlyWeather(
-                time=datetime.fromisoformat(h["local_time"]).replace(tzinfo=TZ),  # local_time is Europe/Athens
+                time=h["local_time"],
                 temperature_c=h["temperature_c"],
                 precipitation_mm=h["precipitation_mm"],
                 weather_code=h["weather_code"],

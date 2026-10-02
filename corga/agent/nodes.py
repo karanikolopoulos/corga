@@ -27,10 +27,13 @@ from corga.agent.state import Intent, Result, AgentState, ParsedRequest
 from corga.data.models import POI
 from corga.data.timeutil import Interval, now
 from corga.weather.models import HourlyWeather, WeatherUnavailable
-from corga.weather.replan import WeatherAdaptation, wet_periods, adapt_for_weather
-from corga.agent.templates import parse_prompt, render_result, respond_prompt
+from corga.weather.replan import wet_periods
+from corga.agent.templates import render_result
 from corga.planning.models import Itinerary, Preferences
-from corga.planning.builder import FeasibilityReport, replace_stop, build_itinerary, check_requested
+from corga.planning.builder import (
+    Replan,
+    FeasibilityReport,
+)
 from corga.planning.candidates import matched_interests
 
 Handler = Literal["answer", "recommend", "plan", "edit_plan", "weather", "refuse"]
@@ -43,9 +46,7 @@ ROUTES: dict[Intent, Handler] = {
     "out_of_scope": "refuse",
 }
 
-RECENT_MESSAGES = 5  # the two previous turns plus this message, so the parser always starts on a user message
-PARSE_PROMPT = parse_prompt()  # read once from the templates folder
-RESPOND_PROMPT = respond_prompt()
+RECENT_MESSAGES = 5  # the two previous turns plus this message, starting on a user message
 
 
 def route(state: AgentState) -> Handler:
@@ -57,10 +58,14 @@ def route(state: AgentState) -> Handler:
 # --- what the result says about a place ---
 
 
-def _fact(poi: POI) -> dict[str, Any]:
-    """What the answer may say about a place; null opening hours stay null (unknown, not open)."""
+def _fact(poi: POI, score: float | None) -> dict[str, Any]:
+    """What the answer may say about a place; null opening hours stay null (unknown, not open).
+
+    `score` is the search similarity, or None for a place the user named that the search did not return.
+    """
     return {
         "id": poi.id,
+        "score": round(score, 3) if score is not None else None,
         "name": poi.name,
         "category": poi.category,
         "setting": poi.setting,
@@ -98,7 +103,7 @@ def parse(state: AgentState, runtime: Runtime[Deps]) -> AgentState:
     """Interpret the latest message (LLM), then fold it into the sticky window and preferences (code)."""
     turn = Turn(state, runtime.context)
     inputs = {"today": now().date().isoformat(), "context": turn.summary, "messages": turn.messages[-RECENT_MESSAGES:]}
-    prompt: PromptValue = PARSE_PROMPT.invoke(inputs)
+    prompt: PromptValue = turn.deps.parse_prompt.invoke(inputs)
     request: ParsedRequest = turn.deps.structured(ParsedRequest).invoke(prompt)
     return {
         "request": request,
@@ -114,8 +119,10 @@ def answer(state: AgentState, runtime: Runtime[Deps]) -> AgentState:
     named = turn.lookup(turn.request.requested_places)
     # TODO(calibrate): drop hits below a minimum similarity so off-topic questions cite nothing, instead of the
     # 4 nearest POIs; pick the threshold from MiniLM scores on on-topic vs off-topic questions (e.g. 'aquarium').
-    pois: list[POI] = unique([*named.places, *turn.search(question)])  # named first
-    facts = [_fact(p) for p in pois]
+    hits = turn.search(question)
+    scores = {hit.poi.id: hit.score for hit in hits}
+    pois: list[POI] = unique([*named.places, *(hit.poi for hit in hits)])  # named first
+    facts = [_fact(p, scores.get(p.id)) for p in pois]
     result: Result = {
         "kind": "answer",
         "question": question,
@@ -130,10 +137,9 @@ def answer(state: AgentState, runtime: Runtime[Deps]) -> AgentState:
 def recommend(state: AgentState, runtime: Runtime[Deps]) -> AgentState:
     """The top candidates for the preferences, open on the planned day when there is one."""
     turn = Turn(state, runtime.context)
-    pool: list[POI] = turn.candidates()
-    if turn.day is not None:
-        pool = [p for p in pool if p.is_open_on(turn.day)]
-    items = [_item(p, turn.prefs) for p in pool[:5]]
+    steps = turn.deps.steps
+    pois: list[POI] = steps.places(steps.recommend.invoke({"preferences": turn.prefs, "day": turn.day}))
+    items = [_item(p, turn.prefs) for p in pois]
     result: Result = {
         "kind": "recommendation",
         "preferences": dump(turn.prefs),
@@ -146,36 +152,40 @@ def recommend(state: AgentState, runtime: Runtime[Deps]) -> AgentState:
 def plan(state: AgentState, runtime: Runtime[Deps]) -> AgentState:
     """A new itinerary from the preferences, or a feasibility check of the places the user named."""
     turn = Turn(state, runtime.context)
-    window, deps = turn.window, turn.deps
+    window, steps = turn.window, turn.deps.steps
     if window is None:
         return need_info("a date plus start and end time")
     if not turn.request.requested_places:
-        return turn.planned(build_itinerary(window, turn.candidates(), deps.rules), {"kind": "plan"})
+        candidates = [poi.id for poi in turn.candidates()]
+        built: Itinerary = steps.build_itinerary.invoke({"window": window, "candidates": candidates})
+        return turn.planned(built, {"kind": "plan"})
 
     named = turn.lookup(turn.request.requested_places)
     if named.unknown:
         return refusal("not_in_dataset", names=named.unknown)
-    report: FeasibilityReport = check_requested(named.places, window, deps.store, deps.rules)
+    places = [poi.id for poi in named.places]
+    report: FeasibilityReport = steps.check_requested.invoke({"places": places, "window": window})
     result: Result = {"kind": "plan", "feasibility": dump(report)}
     itinerary: Itinerary | None = report.itinerary or report.alternative
     return turn.planned(itinerary, result) if itinerary else {"result": result}
 
 
 def edit_plan(state: AgentState, runtime: Runtime[Deps]) -> AgentState:
-    """Replace one stop, keeping every other stop and the window."""
+    """Replace one stop, or, without a stop number, apply newly stated preferences to the whole plan.
+
+    Unaffected stops and the window are kept either way.
+    """
     turn = Turn(state, runtime.context)
     itinerary, index = turn.itinerary, turn.request.stop_index  # index is 1-based
     if itinerary is None:
         return need_info("an existing itinerary to edit")
+    if index is None and turn.request.preference_updates:
+        return _revise_for_preferences(turn, itinerary)
     if index is None or not 1 <= index <= len(itinerary.stops):
         return need_info(f"which stop to change (1-{len(itinerary.stops)})")
 
-    # Prefer a replacement matching the interests; otherwise any place that passes the other filters.
-    new: Itinerary | None = None
-    for prefs in (turn.prefs, turn.prefs.without_interests()):
-        new = replace_stop(itinerary, index, turn.candidates(prefs), turn.deps.store, turn.deps.rules)
-        if new is not None:
-            break
+    args = {"itinerary": itinerary, "index": index, "preferences": turn.prefs}
+    new: Itinerary | None = turn.deps.steps.replace_stop.invoke(args)
     if new is None:
         reason = "no alternative fits the time window and constraints"
         return {"result": {"kind": "edit_failed", "stop_index": index, "reason": reason}}
@@ -183,20 +193,29 @@ def edit_plan(state: AgentState, runtime: Runtime[Deps]) -> AgentState:
     return turn.planned(new, result)
 
 
+def _revise_for_preferences(turn: Turn, itinerary: Itinerary) -> AgentState:
+    """The plan rebuilt from its first stop that the updated preferences no longer select."""
+    args = {"itinerary": itinerary, "preferences": turn.prefs}  # the preferences are already updated by `parse`
+    replan: Replan = turn.deps.steps.replan_for_preferences.invoke(args)
+    result: Result = {"kind": "plan", "adaptation": dump(replan, exclude={"itinerary"})}
+    return turn.planned(replan.itinerary, result)
+
+
 def weather(state: AgentState, runtime: Runtime[Deps]) -> AgentState:
     """The forecast for the relevant hours and, when there is a plan, the plan adapted to rain."""
     turn = Turn(state, runtime.context)
-    provider = turn.deps.weather
+    steps = turn.deps.steps
     start, end = turn.weather_range()
     try:
-        hours: list[HourlyWeather] = provider.hourly(start, end)
+        forecast: dict[str, Any] = steps.weather_forecast.invoke({"start": start, "end": end})
     except WeatherUnavailable as exc:
-        return {"result": {"kind": "weather_unavailable", "source": provider.source, "reason": str(exc)}}
+        return {"result": {"kind": "weather_unavailable", "source": turn.deps.weather.source, "reason": str(exc)}}
 
+    hours: list[HourlyWeather] = forecast["hours"]
     periods: list[Interval] = wet_periods(hours)
     result: Result = {
         "kind": "weather",
-        "source": provider.source,
+        "source": forecast["source"],
         "range": [start.isoformat(), end.isoformat()],
         "rain_expected": bool(periods),
         "wet_periods": [{"start": p.start.isoformat(), "end": p.end.isoformat()} for p in periods],
@@ -204,8 +223,8 @@ def weather(state: AgentState, runtime: Runtime[Deps]) -> AgentState:
     }
     if turn.itinerary is None:
         return {"result": result}
-    indoor: list[POI] = turn.candidates(turn.prefs.indoor())
-    adaptation: WeatherAdaptation = adapt_for_weather(turn.itinerary, hours, turn.deps.store, indoor, turn.deps.rules)
+    args = {"itinerary": turn.itinerary, "wet_periods": periods, "preferences": turn.prefs}
+    adaptation: Replan = steps.replan_for_rain.invoke(args)
     result["adaptation"] = dump(adaptation, exclude={"itinerary"})
     return turn.planned(adaptation.itinerary, result)
 
@@ -218,6 +237,6 @@ def respond(state: AgentState, runtime: Runtime[Deps]) -> AgentState:
     """A few framing sentences from the LLM, followed by the deterministic rendering of the result."""
     turn = Turn(state, runtime.context)
     payload = json.dumps(turn.result, ensure_ascii=False, default=str)
-    framing: BaseMessage = turn.deps.llm.invoke(RESPOND_PROMPT.invoke({"result": payload}))
+    framing: BaseMessage = turn.deps.llm.invoke(turn.deps.respond_prompt.invoke({"result": payload}))
     body = render_result(turn.result, turn.deps.store)
     return {"messages": [AIMessage(content=f"{framing.text}\n\n{body}".strip())]}

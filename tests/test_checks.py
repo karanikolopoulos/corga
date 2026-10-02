@@ -1,21 +1,18 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
 
+from tests.conftest import TUE, WED, RULES, window
 from corga.data.timeutil import at
-from corga.planning.rules import PlanningRules
 from corga.planning.checks import validate
-from corga.planning.models import Itinerary, TimeWindow
+from corga.planning.models import Itinerary
 from corga.planning.schedule import Schedule
-
-TUE, WED = date(2026, 10, 6), date(2026, 10, 7)
-RULES = PlanningRules()
 
 
 def plan(store, ids, day, start, end):
-    window = TimeWindow(start=at(day, start), end=at(day, end))
-    stops = list(Schedule.of([store.get(i) for i in ids], window.start, RULES.walking))
-    return Itinerary(window=window, stops=stops)
+    scenario = window(day, start, end)
+    stops = list(Schedule.of([store.get(i) for i in ids], scenario.start, RULES.walking))
+    return Itinerary(window=scenario, stops=stops)
 
 
 def codes(result):
@@ -24,7 +21,7 @@ def codes(result):
 
 def test_window_must_be_ordered():
     with pytest.raises(ValueError):
-        TimeWindow(start=at(WED, "15:00"), end=at(WED, "13:00"))
+        window(WED, "15:00", "13:00")
 
 
 def test_schedule_walks_then_visits(store):
@@ -59,5 +56,4 @@ def test_travel_time_cannot_be_compressed(store):
 
 
 def test_empty_itinerary_is_an_error(store):
-    window = TimeWindow(start=at(WED, "13:00"), end=at(WED, "17:00"))
-    assert "EMPTY" in codes(validate(Itinerary(window=window), store, RULES))
+    assert "EMPTY" in codes(validate(Itinerary(window=window(WED, "13:00", "17:00")), store, RULES))

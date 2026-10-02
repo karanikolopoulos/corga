@@ -17,11 +17,8 @@ from corga.agent.deps import Deps
 from corga.agent.state import Result, AgentState, ParsedRequest
 from corga.data.models import POI
 from corga.data.timeutil import at, now
-from corga.planning.checks import validate
 from corga.planning.models import Itinerary, TimeWindow, Preferences, ValidationResult
-from corga.planning.candidates import select_candidates
 
-FLAG_FIELDS = ("with_child", "avoid_museums", "outdoor_only")
 UNSUPPORTED = {
     "tickets": r"\b(tickets?|admission|entry fees?|prices?|costs?)\b",
     "bookings": r"\b(book|booking|reserve|reservations?)\b",
@@ -43,15 +40,12 @@ def resolve_window(prev: TimeWindow | None, req: ParsedRequest) -> TimeWindow | 
 
 
 def merge_preferences(prefs: Preferences, req: ParsedRequest) -> Preferences:
-    """Flags stated in this message override the stored ones; unstated flags and interests are kept."""
-    update = {f: getattr(req, f) for f in FLAG_FIELDS if getattr(req, f) is not None}
-    if req.interests:
-        update["interests"] = [i.strip().lower() for i in req.interests]
-    return prefs.model_copy(update=update)
+    """Preferences stated in this message override the stored ones; unstated ones are kept."""
+    return prefs.model_copy(update=req.preference_updates)
 
 
 def unsupported_topics(text: str) -> list[str]:
-    """Topics the dataset has no facts about, so the reply must say so instead of guessing."""
+    """Topics in the text that the dataset has no facts about: tickets, bookings, accessibility, events."""
     return [topic for topic, pattern in UNSUPPORTED.items() if re.search(pattern, text, re.IGNORECASE)]
 
 
@@ -71,6 +65,13 @@ def need_info(missing: str) -> AgentState:
 
 def refusal(reason: str, **details: Any) -> AgentState:
     return {"result": {"kind": "refusal", "reason": reason, **details}}
+
+
+class Hit(NamedTuple):
+    """A place the search returned, with its cosine similarity to the query (higher is closer)."""
+
+    poi: POI
+    score: float
 
 
 class Lookup(NamedTuple):
@@ -119,7 +120,7 @@ class Turn:
 
     @property
     def summary(self) -> str:
-        """The session state as short text for the parser prompt, so follow-ups like "replace stop 2" resolve."""
+        """The session state as short text for the parser prompt: time window, preferences, current stops."""
         window, itinerary = self.window, self.itinerary
         lines = [f"time window: {window.start:%A %d %B %Y %H:%M}-{window.end:%H:%M}" if window else "time window: none"]
         lines.append(f"preferences: {self.prefs.model_dump(exclude_defaults=True) or 'none'}")
@@ -140,11 +141,12 @@ class Turn:
 
     def candidates(self, prefs: Preferences | None = None) -> list[POI]:
         """Dataset places passing the preferences (this turn's by default), ranked by the interests."""
-        return select_candidates(self.deps.store.all(), prefs or self.prefs, self.deps.retriever.rank)
+        steps = self.deps.steps
+        return steps.places(steps.select_candidates.invoke(prefs or self.prefs))
 
-    def search(self, query: str) -> list[POI]:
-        """The dataset places closest to the query, best first."""
-        return [self.deps.store.get(doc.metadata["id"]) for doc in self.deps.retriever.search(query)]
+    def search(self, query: str) -> list[Hit]:
+        """The dataset places closest to the query, best first, with their similarity scores."""
+        return [Hit(self.deps.store.get(pid), score) for pid, score in self.deps.steps.retrieve.invoke(query)]
 
     def lookup(self, names: list[str]) -> Lookup:
         """Match place names against the dataset."""
@@ -154,7 +156,7 @@ class Turn:
 
     def planned(self, itinerary: Itinerary, result: Result) -> AgentState:
         """Validate, attach to the result, and keep the itinerary in state only if it is valid."""
-        validation: ValidationResult = validate(itinerary, self.deps.store, self.deps.rules)
+        validation: ValidationResult = self.deps.steps.validate.invoke(itinerary)
         result |= {"itinerary": dump(itinerary), "validation": dump(validation), "citations": itinerary.poi_ids}
         return {"itinerary": itinerary if validation.ok else self.itinerary, "result": result}
 

@@ -1,19 +1,13 @@
-from datetime import date
-
-from corga.data.timeutil import at
-from corga.planning.rules import PlanningRules
+from tests.conftest import WED, RULES, window
 from corga.agent.templates import render_result
-from corga.planning.models import Itinerary, TimeWindow
+from corga.planning.models import Itinerary
 from corga.planning.schedule import Schedule
-
-WED = date(2026, 10, 7)
 
 
 def test_plan_result_renders_table_assumptions_and_sources(store):
-    window = TimeWindow(start=at(WED, "13:00"), end=at(WED, "17:00"))
-    rules = PlanningRules()
-    stops = list(Schedule.of([store.get("CF-007"), store.get("CF-012")], window.start, rules.walking))
-    it = Itinerary(window=window, stops=stops, assumptions=rules.assumptions())
+    scenario = window(WED, "13:00", "17:00")
+    stops = list(Schedule.of([store.get("CF-007"), store.get("CF-012")], scenario.start, RULES.walking))
+    it = Itinerary(window=scenario, stops=stops, assumptions=RULES.assumptions())
     text = render_result({"kind": "plan", "itinerary": it.model_dump(mode="json"), "citations": it.poi_ids}, store)
     assert "| 1 | Casa Parlante Museum (CF-007) | – | 13:00 | 13:00–13:55 | indoor |" in text
     assert "| 2 | Corfu Philharmonic Music Museum (CF-012) | 1 min | 13:56 |" in text

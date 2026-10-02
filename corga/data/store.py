@@ -2,6 +2,7 @@ import re
 import json
 import difflib
 
+from typing import Self
 from pathlib import Path
 
 from corga.data.models import POI
@@ -19,7 +20,7 @@ class POIStore:
         self._by_name = {_norm(p.name): p for p in pois}
 
     @classmethod
-    def from_json(cls, path: str | Path) -> "POIStore":
+    def from_json(cls, path: str | Path) -> Self:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
         return cls([POI.model_validate(p) for p in data["pois"]])
 

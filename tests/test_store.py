@@ -1,4 +1,4 @@
-from datetime import date
+from tests.conftest import TUE
 
 
 def test_loads_all_pois(store):
@@ -16,7 +16,7 @@ def test_aliases_are_mapped(store):
 
 
 def test_new_fortress_closed_on_tuesday(store):
-    assert not store.get("CF-002").opening_hours.is_open_on(date(2026, 10, 6))
+    assert not store.get("CF-002").opening_hours.is_open_on(TUE)
 
 
 def test_find_by_name(store):

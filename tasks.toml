@@ -26,3 +26,7 @@ cmd = "pre-commit run --all-files"
 [tasks.test]
 help = "Run the unit test suite (pass extra pytest args after --)"
 cmd = "pytest"
+
+[tasks.chat]
+help = "Start the interactive chat (Hydra overrides go after it, e.g. `poe chat provider=openai hydra=debug`)"
+cmd = "python -m corga"

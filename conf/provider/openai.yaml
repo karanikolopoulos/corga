@@ -1,0 +1,7 @@
+_target_: langchain_openai.ChatOpenAI
+model: ${oc.select:model,gpt-5.4-mini}
+api_key: ${oc.env:OPENAI_API_KEY}
+reasoning_effort: none  # gpt-5 models accept a temperature only without reasoning
+temperature: 0
+timeout: 60
+max_retries: 2

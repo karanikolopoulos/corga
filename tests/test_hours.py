@@ -1,9 +1,8 @@
 from datetime import date
 
+from tests.conftest import TUE, WED
 from corga.data.hours import OpeningHours, parse_range
 from corga.data.timeutil import at
-
-TUE, WED = date(2026, 10, 6), date(2026, 10, 7)
 
 
 def test_overnight_range_ends_next_day():

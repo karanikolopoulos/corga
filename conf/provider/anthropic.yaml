@@ -1,0 +1,6 @@
+_target_: langchain_anthropic.ChatAnthropic
+model: ${oc.select:model,claude-sonnet-5}
+api_key: ${oc.env:ANTHROPIC_API_KEY}
+max_tokens: 1024
+timeout: 60
+max_retries: 2

@@ -1,6 +1,6 @@
 """Europe/Athens time helpers; every datetime in CorGA is tz-aware local time."""
 
-from typing import NamedTuple
+from typing import Self, NamedTuple
 from datetime import date, time, datetime
 from zoneinfo import ZoneInfo
 
@@ -13,11 +13,11 @@ class Interval(NamedTuple):
     start: datetime
     end: datetime
 
-    def overlaps(self, other: "Interval") -> bool:
+    def overlaps(self, other: Self) -> bool:
         """The two spans share some time."""
         return self.start < other.end and other.start < self.end
 
-    def contains(self, other: "Interval") -> bool:
+    def contains(self, other: Self) -> bool:
         """`other` lies entirely inside this span."""
         return self.start <= other.start and other.end <= self.end
 

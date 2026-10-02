@@ -14,6 +14,7 @@ HOURLY_FIELDS = "temperature_2m,precipitation,weather_code"
 
 class OpenMeteoWeather:
     source = "live"
+    label = "live (Open-Meteo)"
 
     def __init__(self, latitude: float, longitude: float, timeout_s: float = 10.0, client: httpx.Client | None = None):
         self._lat, self._lon, self._timeout = latitude, longitude, timeout_s
@@ -30,7 +31,7 @@ class OpenMeteoWeather:
             "latitude": self._lat,
             "longitude": self._lon,
             "hourly": HOURLY_FIELDS,
-            "timezone": "Europe/Athens",  # times come back as local wall-clock time
+            "timezone": TZ.key,  # times come back as local wall-clock time
             "start_date": start.date().isoformat(),
             "end_date": end.date().isoformat(),
         }
@@ -49,7 +50,7 @@ class OpenMeteoWeather:
         columns = zip(hourly["time"], hourly["temperature_2m"], hourly["precipitation"], hourly["weather_code"])
         return [
             HourlyWeather(
-                time=datetime.fromisoformat(time).replace(tzinfo=TZ),
+                time=time,
                 temperature_c=temperature,
                 precipitation_mm=precipitation or 0.0,  # missing values come back as null
                 weather_code=code,

@@ -1,9 +1,9 @@
 from typing import Protocol
 from datetime import datetime, timedelta
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
-from corga.data.timeutil import Interval
+from corga.data.timeutil import TZ, Interval
 
 HOUR = timedelta(hours=1)
 WET_THRESHOLD_MM = 0.1
@@ -36,6 +36,12 @@ class HourlyWeather(BaseModel):
     precipitation_mm: float = 0.0
     weather_code: int | None = None
 
+    @field_validator("time")
+    @classmethod
+    def _local(cls, value: datetime) -> datetime:
+        """Europe/Athens time: a time without an offset is read as Athens wall-clock time, others are converted."""
+        return value.replace(tzinfo=TZ) if value.tzinfo is None else value.astimezone(TZ)
+
     @property
     def span(self) -> Interval:
         """The hour this forecast covers."""
@@ -54,10 +60,11 @@ class HourlyWeather(BaseModel):
 
 
 class WeatherUnavailable(RuntimeError):
-    """The provider could not answer for the requested range; never fabricate a forecast instead."""
+    """The provider has no forecast for the requested range."""
 
 
 class WeatherProvider(Protocol):
-    source: str
+    source: str  # "live" or "fixture", recorded in every weather result
+    label: str  # where the forecast comes from, for people: "live (Open-Meteo)"
 
     def hourly(self, start: datetime, end: datetime) -> list[HourlyWeather]: ...
