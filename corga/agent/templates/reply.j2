@@ -1,5 +1,23 @@
 {# The factual part of every reply, in reading order. Each section opens with a blank line and renders only when
    the result has something to show; a result whose kind has no such field skips the section. #}
+{% macro forecast_table(label, hours) %}
+
+**Forecast ({{ label }})**
+
+| Hour | Rain (mm) | Conditions | °C |
+|---|---|---|---|
+{% for h in hours %}
+| {{ h.time | weekday_hour }} | {{ h.precipitation_mm }} | {{ h.description }} | {{ h.temperature_c }} |
+{% endfor %}
+{% endmacro %}
+{% macro preferences_in_words(p) %}
+  {%- set sep = joiner("; ") -%}
+  {%- if p.interests %}{{ sep() }}interests {{ p.interests | join(", ") }}{% endif -%}
+  {%- if p.with_child %}{{ sep() }}with a child{% endif -%}
+  {%- if p.avoid_museums %}{{ sep() }}no museums{% endif -%}
+  {%- if p.setting %}{{ sep() }}{{ p.setting }} places{% endif -%}
+  {%- if not (p.interests or p.with_child or p.avoid_museums or p.setting) %}none{% endif -%}
+{% endmacro %}
 {% if result.feasibility is defined and result.feasibility and not result.feasibility.feasible %}
 
 **Why this does not fit:**
@@ -19,7 +37,9 @@
 | # | Stop | Walk | Arrive | Visit | Setting |
 |---|---|---|---|---|---|
 {% for s in itinerary.stops %}
-| {{ loop.index }} | {{ s.name }} ({{ s.poi_id }}) | {{ "–" if loop.first else s.walk_minutes ~ " min" }} | {{ s.arrive | hhmm }} | {{ s.start | hhmm }}–{{ s.end | hhmm }} | {{ s.setting }} |
+{% set walk = "–" if loop.first else s.walk_minutes ~ " min" %}
+{% set arrive, visit = s.arrive | hhmm, (s.start | hhmm) ~ "–" ~ (s.end | hhmm) %}
+| {{ loop.index }} | {{ s.name }} ({{ s.poi_id }}) | {{ walk }} | {{ arrive }} | {{ visit }} | {{ s.setting }} |
 {% endfor %}
 {% if itinerary.assumptions %}
 
@@ -36,24 +56,19 @@
 - [{{ v.severity }}] {{ v.message }}
 {% endfor %}
 {% endif %}
-{% if result.items is defined and result.items %}
-
-{% for i in result.items %}
-- {{ i.name }} ({{ i.id }}): {{ i.category }}, {{ i.setting }}
-{% endfor %}
+{% if result.forecast is defined and result.forecast %}
+{{ forecast_table(result.forecast.label, result.forecast.hours) }}
 {% endif %}
-{% if result.hours is defined and result.hours %}
+{% if result.kind == "preferences" %}
 
-**Forecast ({{ result.source }})**
-
-| Hour | Rain (mm) | Conditions | °C |
-|---|---|---|---|
-{% for h in result.hours %}
-| {{ h.time | weekday_hour }} | {{ h.precipitation_mm }} | {{ h.description }} | {{ h.temperature_c }} |
-{% endfor %}
+**Preferences kept for the plan:** {{ preferences_in_words(result.preferences) }}
+{%- endif %}
+{% if result.kind == "answer" %}
+{{ result.answer }}
 {% endif %}
 {% if result.citations is defined and result.citations %}
 
-**Sources (dataset records):** {% for c in result.citations %}{{ c.id }} {{ c.name }}{{ "; " if not loop.last }}{% endfor %}
+**Sources (dataset records):**
+{%- for c in result.citations %} {{ c.id }} {{ c.name }}{{ ";" if not loop.last }}{% endfor %}
 
 {% endif %}

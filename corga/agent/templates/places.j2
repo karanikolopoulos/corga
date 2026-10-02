@@ -1,0 +1,20 @@
+{# The places a tool returns, one line each, as the agent reads them: the id first, then the facts a question may
+   ask about. #}
+{% set children = {true: "yes", false: "no", none: "unknown"} %}
+{% macro opening_hours(poi) %}
+  {%- if poi.opening_hours is none -%}
+    unknown (not confirmed)
+  {%- else -%}
+    {%- for day, spec in poi.opening_hours.root.items() -%}
+      {{ day }} {{ spec or "closed" }}{{ ", " if not loop.last }}
+    {%- endfor -%}
+  {%- endif -%}
+{% endmacro %}
+{% for poi in places %}
+[{{ poi.id }}] {{ poi.name }} ({{ poi.category }}, {{ poi.setting }};
+{{- " suitable for children: " ~ children[poi.family_suitable] }};
+{{- " visit about " ~ poi.suggested_visit_minutes }} min;
+{{- " fixture hours: " ~ opening_hours(poi) }}): {{ poi.description }}
+{% else %}
+no place matches
+{% endfor %}

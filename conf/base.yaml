@@ -1,9 +1,9 @@
 # The settings every run uses; chat.yaml adds the weather source and the run folder.
 defaults:
-  - provider: vllm  # `+model=...` overrides its default model
+  - provider: oai-api  # `+model=...` overrides its default model
   - embedding: minilm
   - store: poi
   - retrieval: qdrant
   - rules
 
-structured_method: function_calling  # function_calling | json_schema | json_mode
+structured_method: json_schema  # native structured output on every provider (guided decoding on vLLM behind oai-api); function_calling | json_schema | json_mode | null (the client's default)

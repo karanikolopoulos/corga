@@ -1,3 +1,5 @@
+import logging
+
 from typing import Self
 from collections.abc import Sequence
 
@@ -10,12 +12,14 @@ from langchain_core.vectorstores import VectorStore
 from corga.domain.places import POI
 from corga.adapters.retrieval.index import build_index
 
+log = logging.getLogger(__name__)
+
 
 class Retriever(BaseRetriever):
-    """Similarity search over the indexed POIs, optionally restricted to a set of POI ids.
+    """Similarity search over the indexed places.
 
-    `invoke(query)` is the LangChain retriever call (recorded as a retrieval run); `search` and `rank` are the plain
-    methods behind it, also used by candidate ranking.
+    `invoke(query)` is the LangChain retriever call, recorded as a retrieval run. `search` and `rank` are the plain
+    methods behind it. `rank` also orders the planner's candidates.
     """
 
     store: VectorStore
@@ -28,23 +32,41 @@ class Retriever(BaseRetriever):
         pois: Sequence[POI],
         embeddings: Embeddings,
         k: int = 4,
+        *,
         qdrant_url: str | None = None,
         qdrant_api_key: str | None = None,
+        qdrant_path: str | None = None,
     ) -> Self:
-        """Index the POIs (in memory, or on the Qdrant server at `qdrant_url`) and search them."""
-        index = build_index(pois, embeddings, url=qdrant_url, api_key=qdrant_api_key)
+        """Index the places in memory, in a folder on disk or on a Qdrant server.
+
+        Args:
+            pois: The places to index.
+            embeddings: The embedding model.
+            k: How many places a search returns.
+            qdrant_url: A Qdrant server.
+            qdrant_api_key: The Qdrant Cloud key, for a server that needs one.
+            qdrant_path: A folder that keeps the index between runs. With neither a URL nor a folder, the index is
+                in memory.
+
+        Returns:
+            The retriever over the new index.
+        """
+        index = build_index(pois, embeddings, url=qdrant_url, api_key=qdrant_api_key, path=qdrant_path)
+
         return cls(store=index, size=len(pois), k=k)
 
-    def _get_relevant_documents(self, query: str, *, run_manager: CallbackManagerForRetrieverRun) -> list[Document]:
-        return self.search(query)
-
     def search(self, query: str, k: int | None = None, allowed_ids: set[str] | None = None) -> list[Document]:
-        """The `k` closest POIs, taken from `allowed_ids` when given.
+        """Search the places closest to the query.
 
-        Each document keeps only `id` and `name` from the index, plus `score` (cosine similarity: higher is closer);
-        store internals such as Qdrant's `_id` are dropped.
+        Args:
+            query: What to look for.
+            k: How many places to return. None uses the retriever's `k`.
+            allowed_ids: Only these places, when given.
+
+        Returns:
+            The documents, best first, each with `id`, `name` and `score` (cosine similarity, higher is closer).
         """
-        # Score every POI, then keep the allowed ones.
+        # score every POI, then keep the allowed ones
         pairs = self.store.similarity_search_with_score(query, k=self.size)
         docs = [
             Document(
@@ -54,12 +76,26 @@ class Retriever(BaseRetriever):
             for doc, score in pairs
             if allowed_ids is None or doc.metadata["id"] in allowed_ids
         ]
+
         return docs[: k or self.k]
 
     def closest(self, query: str) -> dict[str, float]:
-        """The `k` nearest places, best first, as place id → similarity; through `invoke`, so it is a retrieval run."""
-        return {doc.metadata["id"]: doc.metadata["score"] for doc in self.invoke(query)}
+        """Find the nearest places through `invoke`, recorded as a retrieval run.
+
+        Args:
+            query: What to look for.
+
+        Returns:
+            The place ids with their similarity, best first.
+        """
+        hits = {doc.metadata["id"]: doc.metadata["score"] for doc in self.invoke(query)}
+
+        log.debug("search %r: %s", query, hits)
+
+        return hits
 
     def rank(self, query: str, allowed_ids: set[str]) -> list[str]:
-        """Order the allowed POIs by similarity; satisfies `corga.domain.planning.candidates.Ranker`."""
         return [doc.metadata["id"] for doc in self.search(query, k=len(allowed_ids), allowed_ids=allowed_ids)]
+
+    def _get_relevant_documents(self, query: str, *, run_manager: CallbackManagerForRetrieverRun) -> list[Document]:
+        return self.search(query)

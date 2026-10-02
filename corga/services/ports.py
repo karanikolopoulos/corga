@@ -1,6 +1,3 @@
-"""What the service layer needs from outside it: the dataset and the similarity search. The adapters implement these
-structurally, without importing them."""
-
 from typing import Protocol
 
 from corga.domain.places import POI
@@ -20,9 +17,24 @@ class PlaceSearch(Protocol):
     """Similarity search over the place descriptions (`Retriever`)."""
 
     def closest(self, query: str) -> dict[str, float]:
-        """The places nearest the query, best first: place id → cosine similarity."""
+        """Find the places nearest the query.
+
+        Args:
+            query: What to look for.
+
+        Returns:
+            The place ids with their cosine similarity, best first.
+        """
         ...
 
     def rank(self, query: str, allowed_ids: set[str]) -> list[str]:
-        """The allowed place ids ordered by similarity to the query (a `Ranker` for candidate selection)."""
+        """Order the allowed place ids by similarity to the query.
+
+        Args:
+            query: What to look for.
+            allowed_ids: The places to order.
+
+        Returns:
+            The ids, best first.
+        """
         ...

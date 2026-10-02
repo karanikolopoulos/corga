@@ -1,5 +1,3 @@
-"""CorGA, a Corfu tourist assistant, and where its bundled files live (repo root in development, /app in Docker)."""
-
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]

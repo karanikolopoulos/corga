@@ -1,14 +1,10 @@
-"""Shared setup for the service tests: the in-memory dataset store and a plain search fake, no LangChain."""
-
 import pytest
 
-from tests.conftest import RULES
-from corga.services.steps import PlanningSteps
 from corga.services.places import PlaceFinder
 
 
 class FakeSearch:
-    """A `PlaceSearch` with fixed scores; ranking keeps no order, so candidates stay in id order."""
+    """A `PlaceSearch` with fixed scores. Ranking keeps no order (id order)."""
 
     def __init__(self, scores: dict[str, float]):
         self.scores = scores
@@ -28,8 +24,3 @@ def search():
 @pytest.fixture
 def places(store, search):
     return PlaceFinder(store, search)
-
-
-@pytest.fixture
-def steps(store, search):
-    return PlanningSteps(store, RULES, search.rank)

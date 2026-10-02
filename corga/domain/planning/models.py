@@ -1,25 +1,21 @@
 from typing import Any, Self, Literal, Annotated
 from datetime import date, datetime
+from collections.abc import Iterable
 
-from pydantic import BaseModel, PlainSerializer, computed_field, field_validator, model_validator
+from pydantic import BaseModel, PlainSerializer, computed_field, model_validator
 
 from corga.domain.places import POI, Setting
 from corga.domain.timeutil import Interval
 
 Severity = Literal["error", "warning"]
 ViolationCode = Literal[
-    "EMPTY", "DUPLICATE",  # the whole itinerary
+    "EMPTY", "DUPLICATE", "SHORT_PLAN",  # the whole itinerary
     "OUTSIDE_WINDOW", "VISIT_TOO_SHORT", "UNKNOWN_HOURS", "CLOSED", "LONG_WAIT",  # a stop
     "TRAVEL_TOO_SHORT", "LEG_TOO_LONG",  # the walk into a stop
     "TIME_BUDGET", "CLOSED_DAY",  # a request for named places
 ]  # fmt: skip
 PlaceRef = Annotated[POI, PlainSerializer(lambda poi: poi.id, return_type=str, when_used="json")]  # JSON: the id
-PreferredSetting = Literal["indoor", "outdoor"]  # what a visitor asks for; places are also labelled "mixed"
-
-
-def normalize_interests(interests: list[str]) -> list[str]:
-    """Interest keywords lowercased and trimmed, empty ones dropped."""
-    return [cleaned for interest in interests if (cleaned := interest.strip().lower())]
+PreferredSetting = Literal["indoor", "outdoor"]  # what a visitor asks for (places are also labelled "mixed")
 
 
 class TimeWindow(BaseModel):
@@ -32,6 +28,7 @@ class TimeWindow(BaseModel):
             raise ValueError("time window must be timezone-aware")
         if self.end <= self.start:
             raise ValueError("time window end must be after its start")
+
         return self
 
     @property
@@ -48,7 +45,10 @@ class TimeWindow(BaseModel):
 
 
 class Stop(BaseModel):
-    """A visit to one place; in JSON the place is written as its id, followed by its name and setting."""
+    """A visit to one place.
+
+    In JSON the place is written as its id, followed by its name and setting.
+    """
 
     poi: PlaceRef
     walk_minutes: int
@@ -72,7 +72,6 @@ class Stop(BaseModel):
 
     @property
     def span(self) -> Interval:
-        """The visit itself, from start to end."""
         return Interval(self.start, self.end)
 
 
@@ -89,6 +88,24 @@ class Itinerary(BaseModel):
     def poi_ids(self) -> list[str]:
         return [s.poi_id for s in self.stops]
 
+    @property
+    def minutes_used(self) -> int:
+        """From the window's start to the last stop's end. 0 without stops."""
+        if not self.stops:
+            return 0
+
+        return int((self.stops[-1].end - self.window.start).total_seconds() // 60)
+
+    @property
+    def half_filled(self) -> bool:
+        return self.minutes_used * 2 >= self.window.minutes
+
+    def has_stop(self, number: int) -> bool:
+        return 1 <= number <= len(self.stops)
+
+    def has_every_stop(self, numbers: Iterable[int]) -> bool:
+        return all(self.has_stop(number) for number in numbers)
+
 
 class Violation(BaseModel):
     code: ViolationCode
@@ -104,6 +121,7 @@ class ValidationResult(BaseModel):
     @computed_field
     @property
     def ok(self) -> bool:
+        """No failed check is an error."""
         return not any(v.severity == "error" for v in self.violations)
 
 
@@ -113,19 +131,9 @@ class Preferences(BaseModel):
     avoid_museums: bool = False
     setting: PreferredSetting | None = None  # None: any setting
 
-    @field_validator("interests")
-    @classmethod
-    def _normalized(cls, interests: list[str]) -> list[str]:
-        return normalize_interests(interests)
-
     def merged(self, updates: dict[str, Any]) -> Self:
-        """These preferences with `updates` applied, validated (and the interests cleaned) like a new instance."""
+        """Apply `updates` to the preferences, validated as a new instance."""
         return self.model_validate(self.model_dump() | updates)
 
-    def without_interests(self) -> Self:
-        """The same constraints (child, museums, setting) with no topic preference."""
-        return self.model_copy(update={"interests": []})
-
     def indoor(self) -> Self:
-        """The same preferences restricted to indoor places, e.g. for rain."""
         return self.model_copy(update={"setting": "indoor"})

@@ -30,3 +30,5 @@ cmd = "pytest"
 [tasks.chat]
 help = "Start the interactive chat (Hydra overrides go after it, e.g. `poe chat provider=openai hydra=debug`)"
 cmd = "python -m corga"
+use_exec = true
+verbosity = -1

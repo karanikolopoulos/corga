@@ -1,8 +1,3 @@
-"""The templates in `templates/`: the two LLM prompts, the session state as text, and the layout of every reply.
-
-One Jinja environment renders them all; a template is looked up by its file name without `.j2`.
-"""
-
 from pathlib import Path
 
 from jinja2 import Template, Environment, StrictUndefined, FileSystemLoader
@@ -17,7 +12,7 @@ FILTERS = {
 
 
 class PromptStore:
-    """The Jinja templates in one folder, by file name without `.j2` (`prompts["parse"]` is `parse.j2`)."""
+    """The templates in one folder, by name: `prompts["route"]` is `route.j2`."""
 
     def __init__(self, directory: Path = TEMPLATES_DIR):
         self.env = Environment(
@@ -31,10 +26,10 @@ class PromptStore:
 
     @property
     def names(self) -> list[str]:
-        """The templates in the folder."""
         return [name.removesuffix(".j2") for name in self.env.list_templates(extensions=["j2"])]
 
     def __getitem__(self, name: str) -> Template:
         if name not in self.names:
             raise KeyError(f"no template {name!r}; available: {', '.join(self.names)}")
+
         return self.env.get_template(f"{name}.j2")

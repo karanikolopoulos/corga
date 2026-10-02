@@ -1,0 +1,13 @@
+# Any server with an OpenAI-compatible API: vLLM, Ollama, LM Studio, a hosted endpoint
+# on vLLM the server needs tool calling: --enable-auto-tool-choice --tool-call-parser qwen3_xml
+_target_: langchain_openai.ChatOpenAI
+_convert_: all  # extra_body reaches the OpenAI SDK as plain dicts
+model: ${oc.select:model,Qwen/Qwen3.8-27B}
+base_url: ${oc.env:OAI_API_BASE_URL,http://localhost:8000/v1}
+api_key: ${oc.env:OAI_API_KEY,EMPTY}
+temperature: 0
+timeout: 60
+max_retries: 2
+extra_body:  # server options the OpenAI SDK does not know: Qwen's thinking switch on vLLM
+  chat_template_kwargs:
+    enable_thinking: false

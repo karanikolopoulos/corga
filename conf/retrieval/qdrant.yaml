@@ -1,5 +1,6 @@
 _target_: corga.adapters.retrieval.search.Retriever.from_pois
 embeddings: ${embedding}
 k: 4
-qdrant_url: ${oc.env:QDRANT_URL,null}  # unset: in-memory index
+qdrant_url: ${oc.env:QDRANT_URL,null}  # a Qdrant server
+qdrant_path: ${oc.env:EMBEDDING_CACHE,null}  # a folder that keeps the index; neither set: in memory
 qdrant_api_key: ${oc.env:QDRANT_API_KEY,null}

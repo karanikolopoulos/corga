@@ -14,8 +14,6 @@ def _norm(text: str) -> str:
 
 
 class POIStore:
-    """In-memory, read-only view of the curated dataset."""
-
     def __init__(self, pois: list[POI]):
         self._by_id = {p.id: p for p in pois}
         self._by_name = {_norm(p.name): p for p in pois}
@@ -23,6 +21,7 @@ class POIStore:
     @classmethod
     def from_json(cls, path: str | Path = DATASET_PATH) -> Self:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
+
         return cls([POI.model_validate(p) for p in data["pois"]])
 
     def get(self, poi_id: str) -> POI:
@@ -32,8 +31,18 @@ class POIStore:
         return list(self._by_id.values())
 
     def find(self, name: str) -> POI | None:
+        """Find a place by name, allowing small typos.
+
+        Args:
+            name: The name as the user wrote it.
+
+        Returns:
+            The place, or None if no name is close enough.
+        """
         key = _norm(name)
         if key in self._by_name:
             return self._by_name[key]
+
         match = difflib.get_close_matches(key, list(self._by_name), n=1, cutoff=0.85)
+
         return self._by_name[match[0]] if match else None

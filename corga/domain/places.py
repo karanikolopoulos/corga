@@ -14,7 +14,7 @@ class Location(BaseModel):
 
 
 class POI(BaseModel):
-    # By field name too: restoring a checkpoint rebuilds each place as POI(**model_dump()), which uses field names.
+    # by field name too: a checkpoint restores each place with POI(**model_dump())
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
@@ -28,8 +28,7 @@ class POI(BaseModel):
     suggested_visit_minutes: int
     opening_hours: OpeningHours | None = Field(alias="opening_hours")
     family_suitable: bool | None = Field(alias="family_suitable")
-    source_urls: list[str] = []
 
     def is_open_on(self, day: date) -> bool:
-        """Open at some point that day; unknown hours (null) count as not open."""
+        """Check the place opens that day. Unknown hours count as closed."""
         return self.opening_hours is not None and self.opening_hours.is_open_on(day)

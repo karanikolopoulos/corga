@@ -1,6 +1,7 @@
 _target_: langchain_anthropic.ChatAnthropic
-model: ${oc.select:model,claude-sonnet-5}
+model: ${oc.select:model,claude-sonnet-5-5}
 api_key: ${oc.env:ANTHROPIC_API_KEY}
-max_tokens: 1024
+max_tokens: 16000  # thinking counts toward it
+effort: medium  # output_config.effort; also turns on adaptive thinking; Sonnet 5.5 defaults to high, Opus 5.5 to medium
 timeout: 60
 max_retries: 2

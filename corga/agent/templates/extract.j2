@@ -1,0 +1,22 @@
+You read a tourist's latest message about a visit to Corfu into a plan request.
+Today is {{ today | day }} (Europe/Athens).
+
+{% include "plan.j2" %}
+
+Fill only what the latest user message states; everything else keeps its "not stated" value (null, empty,
+not_stated).
+- date, start_time, end_time: the visit's day and times as stated; resolve relative dates against today. A relative
+  change ("an hour longer") is the new absolute time, read from the current plan.
+- interests: topics the user asks for, from the list. A restaurant, taverna, café, meal, lunch or something to
+  eat is food.
+- child: yes if a child comes along; no if the user says no child; else not_stated.
+- avoid_museums: yes if the user wants no museums; no if museums are fine again; else not_stated.
+- setting: indoor or outdoor only if the user asks for that kind of place; any if either is fine; else not_stated.
+  Walking means on foot, not outdoor.
+- places: names of specific places the user wants to visit, as written; not a town, area or district (Corfu Town,
+  the Old Town), and not a kind of place (a restaurant, a museum, a beach), which is an interest.
+- replace_stops: numbers of the current plan's stops the user wants replaced ("the second stop" is 2; a stop named by
+  its place is that stop's number); only stops the user names or points to. A preference about the whole visit (a
+  child, no museums) names none.
+- keep_other_stops: no only if the user lets the other stops change; yes if they ask to keep them; else not_stated.
+- sources: forecast if the user asks to check the weather or adapt the plan to it.

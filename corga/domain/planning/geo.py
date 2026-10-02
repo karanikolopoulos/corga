@@ -1,5 +1,3 @@
-"""Approximate walking times from coordinates; not a routing engine."""
-
 import math
 
 from dataclasses import dataclass
@@ -12,11 +10,14 @@ EARTH_RADIUS_KM = 6371.0088
 def haversine_km(a: Location, b: Location) -> float:
     lat1, lon1, lat2, lon2 = map(math.radians, (a.latitude, a.longitude, b.latitude, b.longitude))
     h = math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+
     return 2 * EARTH_RADIUS_KM * math.asin(math.sqrt(h))
 
 
 @dataclass(frozen=True)
 class WalkingModel:
+    """Walking time from the straight-line distance, a detour factor and a pace."""
+
     speed_kmh: float = 4.5
     detour_factor: float = 1.3
 

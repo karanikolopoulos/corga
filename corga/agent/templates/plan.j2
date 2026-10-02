@@ -1,0 +1,9 @@
+{# The stored plan as the LLM reads it: the window and the numbered stops with their times. #}
+{% if itinerary %}
+current plan: {{ itinerary.window.start | day }}, {{ itinerary.window.start | hhmm }}-{{ itinerary.window.end | hhmm }}
+{% for stop in itinerary.stops %}
+  {{ loop.index }}. {{ stop.name }} {{ stop.start | hhmm }}-{{ stop.end | hhmm }}
+{% endfor %}
+{% else %}
+current plan: none
+{% endif %}

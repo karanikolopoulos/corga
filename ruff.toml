@@ -3,20 +3,33 @@ target-version = "py312"
 exclude = [".git", ".vscode"]
 
 [lint]
+preview = true
+explicit-preview-rules = true
+
 select = [
     # linting
-    "B",    # flake8-bugbear
-    "C",    # flake8-comprehensions
-    "D200", # unnecessary-multiline-docstring
-    "D202", # blank-line-after-function
-    "E",    # pycodestyle
-    "F",    # Pyflakes
-    "PL",   # pylint
+    "B",       # flake8-bugbear
+    "C",       # flake8-comprehensions
+    "E",       # pycodestyle
+    "F",       # Pyflakes
+    "G",       # flake8-logging-format
+    "LOG",     # flake8-logging
+    "PL",      # pylint
     # formatting
-    "I",  # isort
-    "UP", # pyupgrade
-    "W",  # pycodestyle warnings
+    "I",       # isort
+    "UP",      # pyupgrade
+    "W",       # pycodestyle warnings
+    # docstrings: Google style, optional, imperative summaries
+    "D200",    # unnecessary-multiline-docstring
+    "D205",    # missing-blank-line-after-summary
+    "D212",    # multi-line-summary-first-line
+    "D401",    # non-imperative-mood
+    "D417",    # undocumented-param
+    "D419",    # empty-docstring
+    "DOC201",  # docstring-missing-returns
+    "DOC501",  # docstring-missing-exception
 ]
+
 ignore = [
     "B905",    # zip-without-explicit-strict
     "E731",    # lambda-assignment
@@ -26,7 +39,12 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-"tests/**" = ["PLC0415", "PLR2004"] # lazy imports in fixtures; literal expected values
+# lazy imports in fixtures, literal expected values
+"tests/**" = ["DOC201", "DOC501", "PLC0415", "PLR2004"]
+
+[lint.pydoclint]
+# one-line docstrings need no Args, Returns or Raises
+ignore-one-line-docstrings = true
 
 [lint.isort]
 from-first = false

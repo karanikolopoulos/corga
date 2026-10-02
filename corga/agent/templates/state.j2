@@ -1,8 +1,11 @@
-{# The session state as the parser sees it, and as the REPL's /state shows it. #}
+{# The session state as the REPL's /state shows it. #}
 {% set window = state.window %}
 {% set preferences = state.preferences.model_dump(exclude_defaults=True) %}
 {% set stops = state.itinerary.stops if state.itinerary else [] %}
-{% set numbered %}{% for stop in stops %}{{ loop.index }}. {{ stop.name }}{{ "; " if not loop.last }}{% endfor %}{% endset %}
-time window: {{ "%s %s-%s" | format(window.start | day, window.start | hhmm, window.end | hhmm) if window else "none" }}
+{% set numbered %}
+  {%- for stop in stops %}{{ loop.index }}. {{ stop.name }}{{ "; " if not loop.last }}{% endfor -%}
+{% endset %}
+{% set span = (window.start | day) ~ " " ~ (window.start | hhmm) ~ "-" ~ (window.end | hhmm) if window else "none" %}
+time window: {{ span }}
 preferences: {{ preferences or "none" }}
 current itinerary: {{ numbered or "none" }}

@@ -1,0 +1,8 @@
+{# The forecast as the agent reads it: the stop when one was asked for, the forecast's id, then each hour. #}
+{% if visit %}
+[stop:{{ stop }}] {{ visit.name }} {{ visit.start | hhmm }}-{{ visit.end | hhmm }}
+{% endif %}
+[{{ report.evidence_id }}]
+{% for h in report.hours %}
+{{ h.time | weekday_hour }} {{ h.precipitation_mm }} mm, {{ h.description }}
+{% endfor %}

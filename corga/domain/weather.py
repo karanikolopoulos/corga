@@ -1,10 +1,10 @@
-from typing import Protocol, runtime_checkable
+from typing import Protocol
 from datetime import datetime, timedelta
 from collections.abc import Sequence
 
 from pydantic import BaseModel, computed_field, field_validator
 
-from corga.domain.timeutil import TZ, Interval
+from corga.domain.timeutil import TZ, Interval, iso_duration
 
 HOUR = timedelta(hours=1)
 WET_THRESHOLD_MM = 0.1
@@ -40,17 +40,19 @@ class HourlyWeather(BaseModel):
     @field_validator("time")
     @classmethod
     def _local(cls, value: datetime) -> datetime:
-        """Europe/Athens time: a time without an offset is read as Athens wall-clock time, others are converted."""
+        """Convert to Europe/Athens time. A time without an offset is read as Athens time."""
         return value.replace(tzinfo=TZ) if value.tzinfo is None else value.astimezone(TZ)
 
     @property
     def span(self) -> Interval:
-        """The hour this forecast covers."""
         return Interval(self.time, self.time + HOUR)
 
     @property
     def is_wet(self) -> bool:
-        """Measurable rain, or a WMO code for drizzle, rain, showers or thunderstorms."""
+        """Measurable rain, or a WMO code for rain.
+
+        Drizzle, rain, showers and thunderstorms count.
+        """
         return self.precipitation_mm >= WET_THRESHOLD_MM or self.weather_code in RAIN_CODES
 
     @computed_field
@@ -58,40 +60,99 @@ class HourlyWeather(BaseModel):
     def description(self) -> str:
         if self.weather_code is None:
             return "unknown"
+
         return DESCRIPTIONS.get(self.weather_code, f"WMO code {self.weather_code}")
 
 
 def wet_periods(hours: Sequence[HourlyWeather]) -> list[Interval]:
-    """Wet hours in time order, with back-to-back hours merged (15:00 and 16:00 become 15:00-17:00)."""
+    """Merge the wet hours into periods, in time order.
+
+    Args:
+        hours: The forecast hours.
+
+    Returns:
+        The rain periods. 15:00 and 16:00 become 15:00-17:00.
+    """
     periods: list[Interval] = []
+
     for hour in sorted(hours, key=lambda h: h.time):
         if not hour.is_wet:
             continue
-        if periods and periods[-1].end == hour.span.start:  # continues the previous wet period
+
+        if periods and periods[-1].meets(hour.span):
             periods[-1] = periods[-1]._replace(end=hour.span.end)
         else:
             periods.append(hour.span)
+
     return periods
 
 
-class WeatherUnavailable(RuntimeError):
-    """The provider has no forecast for the requested range."""
+class WeatherReport(BaseModel):
+    """A forecast as fetched: where from, the hours asked for, and the rain in them."""
+
+    source: str  # "live" or "fixture"
+    label: str  # for people: "live (Open-Meteo)"
+    start: datetime
+    end: datetime
+    hours: list[HourlyWeather]
+
+    @computed_field
+    @property
+    def wet_periods(self) -> list[Interval]:
+        return wet_periods(self.hours)
+
+    @computed_field
+    @property
+    def rain_expected(self) -> bool:
+        return bool(self.wet_periods)
+
+    @property
+    def evidence_id(self) -> str:
+        """How an answer cites this forecast: its source and its ISO 8601 interval, the start and the duration."""
+        return f"forecast:{self.source}:{self.start:%Y-%m-%dT%H:%M}/{iso_duration(self.end - self.start)}"
+
+
+class WeatherUnavailable(RuntimeError): ...
 
 
 def overlapping(hours: Sequence[HourlyWeather], start: datetime, end: datetime, source: str) -> list[HourlyWeather]:
-    """The hours that overlap `start`-`end`; WeatherUnavailable if there are none."""
+    """Keep the hours overlapping `start`-`end`.
+
+    Args:
+        hours: The forecast hours.
+        start: The start of the range.
+        end: The end of the range.
+        source: The provider, for the error.
+
+    Returns:
+        The hours.
+
+    Raises:
+        WeatherUnavailable: No hour overlaps.
+    """
     span = Interval(start, end)
     found = [hour for hour in hours if hour.span.overlaps(span)]
     if not found:
         raise WeatherUnavailable(f"{source} has no data for {start:%Y-%m-%d %H:%M}-{end:%H:%M}")
+
     return found
 
 
-@runtime_checkable  # the weather tool's argument schema checks the provider with isinstance
 class WeatherProvider(Protocol):
     source: str  # "live" or "fixture", recorded in every weather result
     label: str  # where the forecast comes from, for people: "live (Open-Meteo)"
 
     def hourly(self, start: datetime, end: datetime) -> list[HourlyWeather]:
-        """The hours overlapping `start`-`end`; WeatherUnavailable when the source fails or has none."""
+        """Fetch the forecast hours.
+
+        Args:
+            start: The start of the range.
+            end: The end of the range.
+
+        Returns:
+            The hours overlapping `start`-`end`.
+
+        Raises:
+            WeatherUnavailable: The source fails or has no hours.
+        """
         ...

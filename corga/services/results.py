@@ -1,24 +1,17 @@
-"""A turn's result: one model per kind, set by the handler. `respond` turns it into text: JSON for the LLM, the
-reply template for the user."""
-
 from typing import Self, Literal
 
 from pydantic import BaseModel, ConfigDict, computed_field
 
-from corga.domain.hours import OpeningHours
-from corga.domain.places import POI, Setting
-from corga.domain.weather import HourlyWeather
-from corga.domain.timeutil import Interval
+from corga.domain.places import POI
+from corga.domain.weather import WeatherReport
 from corga.domain.planning.models import Itinerary, Preferences, ValidationResult
+from corga.domain.planning.refill import Removal
 from corga.domain.planning.builder import FeasibilityReport
-from corga.domain.planning.candidates import matched_interests
 
 RefusalReason = Literal["out_of_scope", "fabrication_or_ignore_dataset", "not_in_dataset"]
 
 
 class Citation(BaseModel):
-    """A dataset record the result cites, for the reply's Sources line."""
-
     id: str
     name: str
 
@@ -27,65 +20,12 @@ class Citation(BaseModel):
         return cls(id=poi.id, name=poi.name)
 
 
-class Fact(BaseModel):
-    """What the answer may say about a place; null opening hours stay null (unknown, not open).
-
-    `score` is the search similarity, or None for a place the user named that the search did not return.
-    """
-
-    id: str
-    score: float | None
-    name: str
-    category: str
-    setting: Setting
-    description: str
-    opening_hours: OpeningHours | None
-    source_urls: list[str]
-
-    @classmethod
-    def of(cls, poi: POI, score: float | None) -> Self:
-        return cls(
-            id=poi.id,
-            score=round(score, 3) if score is not None else None,
-            name=poi.name,
-            category=poi.category,
-            setting=poi.setting,
-            description=poi.description,
-            opening_hours=poi.opening_hours,
-            source_urls=poi.source_urls,
-        )
-
-
-class Item(BaseModel):
-    """A recommended place and which of the interests it matches."""
-
-    id: str
-    name: str
-    category: str
-    setting: Setting
-    matched: list[str]
-    family_suitable: bool | None
-
-    @classmethod
-    def of(cls, poi: POI, prefs: Preferences) -> Self:
-        return cls(
-            id=poi.id,
-            name=poi.name,
-            category=poi.category,
-            setting=poi.setting,
-            matched=matched_interests(poi, prefs.interests),
-            family_suitable=poi.family_suitable,
-        )
-
-
 class Adaptation(BaseModel):
-    """What a replan changed; the result carries the rebuilt itinerary itself."""
-
-    model_config = ConfigDict(from_attributes=True)  # built from a `Replan`
+    model_config = ConfigDict(from_attributes=True)  # built from a `Rebuild`
 
     changed: bool
-    replaced: list[str]
-    note: str
+    removed: list[Removal] = []
+    added: list[str] = []  # place names
 
 
 class NeedInfoResult(BaseModel):
@@ -105,70 +45,37 @@ class WeatherUnavailableResult(BaseModel):
     reason: str
 
 
-class AnswerResult(BaseModel):
-    kind: Literal["answer"] = "answer"
-    question: str
-    facts: list[Fact]
-    unsupported_topics: list[str]
-    unknown_places: list[str]
+class PlanResult(BaseModel):
+    """A plan: new, changed, or the check of named places."""
 
-    @computed_field
-    @property
-    def citations(self) -> list[Citation]:
-        return [Citation(id=fact.id, name=fact.name) for fact in self.facts]
-
-
-class RecommendationResult(BaseModel):
-    kind: Literal["recommendation"] = "recommendation"
-    preferences: Preferences
-    items: list[Item]
-
-    @computed_field
-    @property
-    def citations(self) -> list[Citation]:
-        return [Citation(id=item.id, name=item.name) for item in self.items]
-
-
-class PlannedResult(BaseModel):
-    """A result that may carry an itinerary; the itinerary use cases add its validation."""
-
+    kind: Literal["plan"] = "plan"
     itinerary: Itinerary | None = None
     validation: ValidationResult | None = None
+    feasibility: FeasibilityReport | None = None  # the named places, checked
+    adaptation: Adaptation | None = None  # an edit: the plan rebuilt for new preferences, or one stop replaced
+    forecast: WeatherReport | None = None  # the forecast the plan was adapted to
 
     @computed_field
     @property
     def citations(self) -> list[Citation]:
         if self.itinerary is None:
             return []
+
         return [Citation.of(poi) for poi in self.itinerary.pois]
 
 
-class PlanResult(PlannedResult):
-    kind: Literal["plan"] = "plan"
-    feasibility: FeasibilityReport | None = None  # the named places, checked
-    adaptation: Adaptation | None = None  # an edit: the plan rebuilt for new preferences, or one stop replaced
+class PreferencesResult(BaseModel):
+    """Preferences stored with no plan to change."""
+
+    kind: Literal["preferences"] = "preferences"
+    preferences: Preferences
 
 
-class WeatherResult(PlannedResult):
-    kind: Literal["weather"] = "weather"
-    source: str
-    range: Interval
-    wet_periods: list[Interval]
-    hours: list[HourlyWeather]
-    adaptation: Adaptation | None = None  # the plan rebuilt for rain
+class AnswerResult(BaseModel):
+    """The ask agent's answer: its last message, with the cited ids inline."""
 
-    @computed_field
-    @property
-    def rain_expected(self) -> bool:
-        return bool(self.wet_periods)
+    kind: Literal["answer"] = "answer"
+    answer: str
 
 
-Result = (
-    NeedInfoResult
-    | RefusalResult
-    | WeatherUnavailableResult
-    | AnswerResult
-    | RecommendationResult
-    | PlanResult
-    | WeatherResult
-)
+Result = NeedInfoResult | RefusalResult | PreferencesResult | AnswerResult | WeatherUnavailableResult | PlanResult

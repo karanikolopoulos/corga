@@ -1,12 +1,13 @@
-"""Synthetic weather injected for reproducible replanning tests."""
-
 import json
+import logging
 
 from pathlib import Path
 from datetime import datetime
 
 from corga import RAIN_FIXTURE_PATH
 from corga.domain.weather import HourlyWeather, overlapping
+
+log = logging.getLogger(__name__)
 
 
 class FixtureWeather:
@@ -26,4 +27,8 @@ class FixtureWeather:
         ]
 
     def hourly(self, start: datetime, end: datetime) -> list[HourlyWeather]:
-        return overlapping(self._hours, start, end, "fixture")
+        found = overlapping(self._hours, start, end, "fixture")
+
+        log.debug("fixture: %d hours for %s", len(found), f"{start:%a %H:%M}-{end:%H:%M}")
+
+        return found
