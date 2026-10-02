@@ -17,7 +17,7 @@ Throughout, the following assumptions hold.
 Every message runs once through a LangGraph graph ([graph.py](../corga/agent/runtime/graph.py)), and each path ends in
 one result that becomes the reply. Plan requests take a deterministic path, questions an agentic one.
 
-![The graph](graph.png)
+<img src="graph.png" alt="The graph" width="75%">
 
 **route** makes one structured LLM call that picks the path of the latest message.
 
@@ -111,7 +111,7 @@ preference.
 
 ## Layers
 
-![The layers](layers.png)
+<img src="layers.png" alt="The layers" width="75%">
 
 Each layer imports only the ones inside it. Above the agent layer the LLM interprets and phrases, below it code
 decides, and the services reach the adapters through ports ([ports.py](../corga/services/ports.py)). Hydra builds
