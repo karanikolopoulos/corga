@@ -1,7 +1,7 @@
 [project]
 name = "corga"
 version = "0.2.0"
-description = "Add your description here"
+description = "A conversational travel assistant for Corfu, built with LangGraph."
 readme = "README.md"
 authors = [
     { name = "karanikolopoulos", email = "ckaranikolopoulos@gmail.com" }
