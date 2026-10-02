@@ -1,6 +1,6 @@
 """Fixture opening hours: null weekday = closed, end < start = overnight, 24:00 = end of day."""
 
-from typing import Literal, NamedTuple
+from typing import NamedTuple
 from datetime import date, datetime, timedelta
 
 from pydantic import RootModel
@@ -8,7 +8,6 @@ from pydantic import RootModel
 from corga.data.timeutil import at
 
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-Access = Literal["open", "closed", "unknown"]
 
 
 class Interval(NamedTuple):
@@ -31,6 +30,11 @@ class OpeningHours(RootModel[dict[str, str | None]]):
     def __getitem__(self, weekday: str) -> str | None:
         return self.root[weekday]
 
+    def __contains__(self, span: Interval) -> bool:
+        """`(start, end) in hours`: the whole span falls inside one opening interval."""
+        start, end = span
+        return any(i.start <= start and end <= i.end for i in self.intervals_around(start.date()))
+
     def intervals_starting_on(self, day: date) -> list[Interval]:
         spec = self.root.get(WEEKDAYS[day.weekday()])
         return [parse_range(day, spec)] if spec else []
@@ -42,9 +46,6 @@ class OpeningHours(RootModel[dict[str, str | None]]):
     def is_open_on(self, day: date) -> bool:
         return bool(self.intervals_starting_on(day))
 
-    def covers(self, start: datetime, end: datetime) -> bool:
-        return any(i.start <= start and end <= i.end for i in self.intervals_around(start.date()))
-
     def earliest_start(self, arrive: datetime, minutes: int) -> datetime | None:
         """Earliest visit start >= arrive such that the whole visit fits inside one interval."""
         need = timedelta(minutes=minutes)
@@ -53,9 +54,3 @@ class OpeningHours(RootModel[dict[str, str | None]]):
             if start + need <= interval.end:
                 return start
         return None
-
-
-def access(hours: OpeningHours | None, start: datetime, end: datetime) -> Access:
-    if hours is None:
-        return "unknown"
-    return "open" if hours.covers(start, end) else "closed"
