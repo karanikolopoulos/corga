@@ -19,6 +19,9 @@ by an indoor museum.
 docker compose run --rm app weather=fixture hydra=debug
 ```
 
+<details>
+<summary>Show the conversation</summary>
+
 ```text
 Loading the dataset and the embedding model...
 Model: anthropic claude-sonnet-5-5 · weather: fixture (synthetic rain, corfu_synthetic_rain.json)
@@ -104,6 +107,8 @@ Model: anthropic claude-sonnet-5-5 · weather: fixture (synthetic rain, corfu_sy
 🙋 /exit
 ✔ closed session db755f3b
 ```
+
+</details>
 
 ## What it does
 
