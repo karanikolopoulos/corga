@@ -32,13 +32,13 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-    "commitizen>=4.19.0",
+    "commitizen>=4.19.3",
     "ipykernel>=7.3.0",
     "pandas>=3.0.6",
     "poethepoet>=0.48.0",
     "prek>=0.5.11",
     "pytest>=9.1.1",
-    "ruff>=0.16.9",
+    "ruff>=0.17.5",
 ]
 
 [tool.poe]

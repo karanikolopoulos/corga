@@ -20,13 +20,13 @@ hooks = [
 # secrets
 [[repos]]
 repo = "https://github.com/gitleaks/gitleaks"
-rev = "v8.30.0"
+rev = "v8.30.1"
 hooks = [{ id = "gitleaks" }]
 
 # python: lint with fixes, then format
 [[repos]]
 repo = "https://github.com/astral-sh/ruff-pre-commit"
-rev = "v0.16.9"
+rev = "v0.17.5"
 hooks = [{ id = "ruff-check", args = ["--fix"] }, { id = "ruff-format" }]
 
 # keep uv.lock in sync with pyproject.toml
@@ -38,5 +38,5 @@ hooks = [{ id = "uv-lock" }]
 # conventional commit messages
 [[repos]]
 repo = "https://github.com/commitizen-tools/commitizen"
-rev = "v4.19.0"
+rev = "v4.19.3"
 hooks = [{ id = "commitizen", stages = ["commit-msg"] }]
