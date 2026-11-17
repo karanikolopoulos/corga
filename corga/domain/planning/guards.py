@@ -247,7 +247,7 @@ class PlaceGuards(Guards):
         return Clause(
             ok=poi.is_open_on(self.day),
             code="CLOSED_DAY",
-            msg=f"{poi.name} is closed on {self.day:%A} (fixture hours).",
+            msg=f"{poi.name} is closed on {self.day:%A} (listed hours).",
         )
 
     @cached_property

@@ -14,7 +14,7 @@
 [{{ poi.id }}] {{ poi.name }} ({{ poi.category }}, {{ poi.setting }};
 {{- " suitable for children: " ~ children[poi.family_suitable] }};
 {{- " visit about " ~ poi.suggested_visit_minutes }} min;
-{{- " fixture hours: " ~ opening_hours(poi) }}): {{ poi.description }}
+{{- " listed hours: " ~ opening_hours(poi) }}): {{ poi.description }}
 {% else %}
 no place matches
 {% endfor %}

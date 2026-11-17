@@ -1,7 +1,7 @@
 from typing import Literal
 from datetime import date
 
-from pydantic import Field, BaseModel, ConfigDict
+from pydantic import BaseModel
 
 from corga.domain.hours import OpeningHours
 
@@ -14,9 +14,6 @@ class Location(BaseModel):
 
 
 class POI(BaseModel):
-    # by field name too: a checkpoint restores each place with POI(**model_dump())
-    model_config = ConfigDict(populate_by_name=True)
-
     id: str
     name: str
     area: str
@@ -26,8 +23,8 @@ class POI(BaseModel):
     description: str
     setting: Setting
     suggested_visit_minutes: int
-    opening_hours: OpeningHours | None = Field(alias="opening_hours")
-    family_suitable: bool | None = Field(alias="family_suitable")
+    opening_hours: OpeningHours | None
+    family_suitable: bool | None
 
     def is_open_on(self, day: date) -> bool:
         """Check the place opens that day. Unknown hours count as closed."""

@@ -92,7 +92,7 @@ def search(query: str, runtime: ToolRuntime[Deps, ToolState]) -> str:
 
     Return the closest ones, best first. Use it for a question about what a place is, what it has or what it is known
     for, and to look up a place the user names, including its opening hours. Each result gives the place's id in square
-    brackets, its category, setting, suitability for children, suggested visit time, fixture opening hours for every
+    brackets, its category, setting, suitability for children, suggested visit time, listed opening hours for every
     weekday and description. The dataset holds no tickets, prices, bookings, accessibility details or live opening
     status, so another search will not find them. Not for recommendations by interest (use find_places) or for the
     weather (use forecast).
@@ -134,7 +134,7 @@ def find_places(
         child: "yes" if a child comes along, "no" if not. "not_stated" uses the stored preference.
         avoid_museums: "yes" to leave museums out, "no" to allow them. "not_stated" uses the stored preference.
         setting: "indoor" or "outdoor" places, "any" for either. "not_stated" uses the stored preference.
-        date: A day (YYYY-MM-DD). Only places open that day in the fixture hours are recommended.
+        date: A day (YYYY-MM-DD). Only places open that day in the listed hours are recommended.
 
     Returns:
         The places, one line each, or "no place matches".
