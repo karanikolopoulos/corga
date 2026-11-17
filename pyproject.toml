@@ -36,7 +36,7 @@ dev = [
     "ipykernel>=7.3.0",
     "pandas>=3.0.6",
     "poethepoet>=0.48.0",
-    "pre-commit>=4.6.2",
+    "prek>=0.5.11",
     "pytest>=9.1.1",
     "ruff>=0.16.9",
 ]

@@ -1,5 +1,9 @@
 # CorGA: Corfu Guide Agent
 
+[![CI](https://github.com/karanikolopoulos/corga/actions/workflows/ci.yml/badge.svg)](https://github.com/karanikolopoulos/corga/actions/workflows/ci.yml)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
+![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?logo=langgraph&logoColor=white)
+
 A conversational travel assistant for Corfu, built with LangGraph. It answers questions about the island's places,
 recommends places for the visitor's interests, builds a realistic half-day walking plan, and revises that plan when the
 visitor changes their mind or the weather changes. The LLM reads the requests and words the replies; code checks every
@@ -292,7 +296,7 @@ Automated tasks run with [poe](https://poethepoet.natn.io), defined in [`tasks.t
   clean                 Remove all cache and generated files
   lint                  Run ruff linter with diff (pass directory/file as arg)
   format                Check formatting with diff (pass directory/file as arg)
-  quality               Run all pre-commit hooks on all files
+  quality               Run all git hooks on all files with prek
   test                  Run the unit test suite (pass extra pytest args after --)
   chat                  Start the interactive chat (Hydra overrides go after it)
   docker                Start the chat in Docker as your own user, building the image when needed

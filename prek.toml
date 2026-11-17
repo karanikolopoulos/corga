@@ -1,0 +1,42 @@
+#:schema https://www.schemastore.org/prek.json
+
+default_install_hook_types = ["pre-commit", "commit-msg"]
+default_stages = ["pre-commit"]
+
+# file hygiene, built into prek
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "check-merge-conflict" },
+  { id = "trailing-whitespace" },
+  { id = "end-of-file-fixer" },
+  { id = "check-added-large-files", args = ["--maxkb=1024"] },
+  { id = "check-json" },
+  { id = "check-toml" },
+  { id = "check-yaml" },
+  { id = "detect-private-key" },
+]
+
+# secrets
+[[repos]]
+repo = "https://github.com/gitleaks/gitleaks"
+rev = "v8.30.0"
+hooks = [{ id = "gitleaks" }]
+
+# python: lint with fixes, then format
+[[repos]]
+repo = "https://github.com/astral-sh/ruff-pre-commit"
+rev = "v0.16.9"
+hooks = [{ id = "ruff-check", args = ["--fix"] }, { id = "ruff-format" }]
+
+# keep uv.lock in sync with pyproject.toml
+[[repos]]
+repo = "https://github.com/astral-sh/uv-pre-commit"
+rev = "0.12.19"
+hooks = [{ id = "uv-lock" }]
+
+# conventional commit messages
+[[repos]]
+repo = "https://github.com/commitizen-tools/commitizen"
+rev = "v4.19.0"
+hooks = [{ id = "commitizen", stages = ["commit-msg"] }]

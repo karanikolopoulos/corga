@@ -18,11 +18,11 @@ jobs:
       - name: Install dev tools only
         run: uv sync --locked --only-dev
 
-      - name: Cache pre-commit hook envs
+      - name: Cache prek hook envs
         uses: actions/cache@v6
         with:
-          path: ~/.cache/pre-commit
-          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          path: ~/.cache/prek
+          key: prek-${{ hashFiles('prek.toml') }}
 
       - name: Run quality checks
         run: uv run poe quality
