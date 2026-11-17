@@ -17,7 +17,7 @@ def scripted(*messages) -> ScriptedChatModel:
 
 
 @pytest.fixture
-def plan_d(store):
+def outdoor_plan(store):
     return itinerary(store, ["CF-001", "CF-003", "CF-005"], window(WED, "13:00", "17:00"))
 
 
@@ -30,19 +30,19 @@ def asked(deps: Deps, text: str, **state) -> dict:
     return ask(TurnState(messages=[HumanMessage(text)], **state), Runtime(context=deps))
 
 
-def test_a_forecast_for_a_stop_reads_the_stored_plan(make_deps, plan_d):
+def test_a_forecast_for_a_stop_reads_the_stored_plan(make_deps, outdoor_plan):
     llm = scripted(call("forecast", stop=1), AIMessage("Dry."))
     deps = make_deps(llm=llm)
-    out = deps.agent.invoke({"messages": [HumanMessage("Rain at stop 1?")], **stored(plan_d)}, context=deps)
+    out = deps.agent.invoke({"messages": [HumanMessage("Rain at stop 1?")], **stored(outdoor_plan)}, context=deps)
     [result] = [m for m in out["messages"] if isinstance(m, ToolMessage)]
 
     assert result.text.startswith("[stop:1] Old Fortress 13:00-") and "[forecast:fixture:" in result.text
 
 
-def test_a_tool_error_reaches_the_model_as_an_error_message(make_deps, plan_d):
+def test_a_tool_error_reaches_the_model_as_an_error_message(make_deps, outdoor_plan):
     llm = scripted(call("forecast", stop=9), AIMessage("No such stop."))
     deps = make_deps(llm=llm)
-    out = deps.agent.invoke({"messages": [HumanMessage("Rain at stop 9?")], **stored(plan_d)}, context=deps)
+    out = deps.agent.invoke({"messages": [HumanMessage("Rain at stop 9?")], **stored(outdoor_plan)}, context=deps)
     [error] = [m for m in out["messages"] if isinstance(m, ToolMessage) and m.status == "error"]
 
     assert error.text == "forecast failed: the plan has stops 1-3"

@@ -120,5 +120,5 @@ key and no network.
 - [docs/evaluation.md](docs/evaluation.md), nine conversations with the expected behaviour and the observed result.
 - [docs/discussion.md](docs/discussion.md), retrieval quality, the iterative design process and hallucinations.
 - [notebooks](notebooks/), the data exploration of the places
-  ([1.0-ck-poi-exploration.ipynb](notebooks/1.0-ck-poi-exploration.ipynb)) and of the walking times
-  ([1.0-ck-walking-times.ipynb](notebooks/1.0-ck-walking-times.ipynb)).
+  ([1.1-ck-poi-exploration.ipynb](notebooks/1.1-ck-poi-exploration.ipynb)) and of the walking times
+  ([1.1-ck-walking-times.ipynb](notebooks/1.1-ck-walking-times.ipynb)).
